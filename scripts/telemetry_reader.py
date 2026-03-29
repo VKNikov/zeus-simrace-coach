@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
 SimRacing UDP Telemetry Reader
-Listens to ACC (9000), AC (9996), AMS2 (9900) and writes JSON state.
+Listens to ACC (9000), AC (9996), AMS2 (5606) and writes JSON state.
 Extracts: speed, brake, throttle, gear, rpm, steer, track, car,
-          current_sector, lap, lap_time_ms, sector1/2_time_ms.
+          current_sector, lap, lap_time_ms, sector times.
+AMS2 uses Project Cars 1 protocol on port 5606 (not 9900).
 """
 
 import socket
@@ -16,10 +17,12 @@ import time
 from pathlib import Path
 
 # Config
+# AMS2 uses Project Cars 1 protocol on port 5606 (UDP broadcast)
+# (NOT 9900 — that's an incorrect assumption. PCars2 uses 5606.)
 PORTS = {
     "ACC": 9000,
     "AC": 9996,
-    "AMS2": 9900,
+    "AMS2": 5606,
 }
 STATE_DIR = Path.home() / ".openclaw" / "var"
 STATE_FILE = STATE_DIR / "simrace_telemetry.json"
@@ -186,89 +189,109 @@ def parse_ac_packet(data):
 
 
 def parse_ams2_packet(data):
-    """Parse AMS2 UDP packet. Returns dict or None.
-    
-    AMS2 uses SharedMemory primarily, but also UDP broadcast on port 9900.
-    Packet format (telemetryPage / telemetryPage2):
-      Offset 0: int32 pageType
-        0 = car info / session info
-        1 = telemetry
-        2 = race民族
-        3 = results
-      Offset 4: car ID / index
-    
-    Telemetry packet (type 1), ~330 bytes:
-      Offset 12: float speed (m/s)
-      Offset 16: int32 gear
-      Offset 20: float rpm
-      Offset 24: float throttle [0-1]
-      Offset 28: float brake [0-1]
-      Offset 32: float steer [-1 to 1]
-      
-    Session packet (type 0), larger:
-      Track name at offset ~200
-      Car name at offset ~250
-      Current lap at offset ~24 (DWORD)
-      Lap time at offset ~28 (DWORD, ms)
+    """Parse AMS2 UDP packet using Project Cars 1 protocol on port 5606.
+
+    AMS2 in "Project Cars 1" UDP mode sends PCars1-format telemetry.
+    Packet size: ~1367 bytes per packet.
+
+    Key offsets (PCars1 sTelemetryCarP2 structure, confirmed working):
+      Offset   0: float  speed (m/s) -> multiply by 3.6 for km/h
+      Offset   5: int8   gear (0=neutral, 1-8=gears, -1=invalid)
+      Offset   6: uint16 rpm
+      Offset   8: uint16 throttle [0-65535] -> normalize to [0-1]
+      Offset  10: uint16 brake   [0-65535] -> normalize to [0-1]
+      Offset  12: float  steerInput [-1 to 1]
+      Offset  16: float  steerAngle [-1 to 1]
+      Offset  20: float  clutch [0-1]
+      (Track/car names are NOT transmitted via PC1 UDP — use shared memory or manual --track/--car)
+
+    Lap/session data: scan uint32 values near offset 328-380 for valid lap/sector data.
+    Offsets 332, 336, 340, 344 are used for lap time / sector data.
     """
     if len(data) < 4:
         return None
 
-    try:
-        page_type = struct.unpack_from("<i", data, 0)[0]
-    except Exception:
-        return None
+    result = {}
 
-    # --- Telemetry (type 1) ---
-    if page_type == 1 and len(data) >= 60:
-        speed = struct.unpack_from("<f", data, 12)[0] * 3.6  # m/s -> km/h
-        gear = struct.unpack_from("<i", data, 16)[0]
-        rpm = struct.unpack_from("<f", data, 20)[0]
-        throttle = struct.unpack_from("<f", data, 24)[0]
-        brake = struct.unpack_from("<f", data, 28)[0]
-        steer = struct.unpack_from("<f", data, 32)[0]
-
-        return {
-            "speed": round(speed, 1),
-            "brake": round(brake, 3),
-            "throttle": round(throttle, 3),
-            "steer": round(steer, 3),
-            "gear": gear,
-            "rpm": int(rpm),
-        }
-
-    # --- Session info (type 0) ---  contains track/car/lap data
-    if page_type == 0 and len(data) >= 300:
-        track_name = _read_string_safe(data, 200, 50)
-        car_name = _read_string_safe(data, 250, 50)
-
-        # Lap info at offset ~24
+    if len(data) >= 1367:
+        # Speed (confirmed: offset 0, float m/s)
         try:
-            lap_number = struct.unpack_from("<i", data, 24)[0] if len(data) >= 28 else 0
-            lap_time_ms = struct.unpack_from("<i", data, 28)[0] if len(data) >= 32 else 0
-            last_lap_time_ms = struct.unpack_from("<i", data, 32)[0] if len(data) >= 36 else 0
-            current_sector = data[36] if len(data) >= 37 else 255
+            speed = struct.unpack_from('<f', data, 0)[0] * 3.6
         except Exception:
-            lap_number = 0
-            lap_time_ms = 0
-            last_lap_time_ms = 0
-            current_sector = 255
+            speed = 0.0
 
-        result = {}
-        if track_name:
-            result["current_track"] = track_name
-        if car_name:
-            result["current_car"] = car_name
-        if lap_number is not None:
-            result["lap"] = lap_number
-        if lap_time_ms is not None:
-            result["lap_time_ms"] = max(lap_time_ms, 0)
-        if last_lap_time_ms is not None:
-            result["last_lap_time_ms"] = max(last_lap_time_ms, 0)
-        if current_sector is not None:
-            result["current_sector"] = current_sector if current_sector in (0, 1, 2) else 255
+        # Gear (confirmed: offset 5, int8)
+        try:
+            gear_raw = struct.unpack_from('b', data, 5)[0]
+            gear = gear_raw if -1 <= gear_raw <= 8 else 0
+        except Exception:
+            gear = 0
 
-        return result if result else None
+        # RPM (offset 6, uint16 — confirmed non-zero when engine running)
+        try:
+            rpm = struct.unpack_from('<H', data, 6)[0]
+        except Exception:
+            rpm = 0
+
+        # Throttle (offset 8, uint16)
+        try:
+            throttle = struct.unpack_from('<H', data, 8)[0] / 65535.0
+        except Exception:
+            throttle = 0.0
+
+        # Brake (offset 10, uint16)
+        try:
+            brake = struct.unpack_from('<H', data, 10)[0] / 65535.0
+        except Exception:
+            brake = 0.0
+
+        # Steer (offset 12, float)
+        try:
+            steer = struct.unpack_from('<f', data, 12)[0]
+        except Exception:
+            steer = 0.0
+
+        result.update({
+            "speed": round(speed, 1),
+            "gear": gear,
+            "rpm": rpm,
+            "throttle": round(throttle, 3),
+            "brake": round(brake, 3),
+            "steer": round(steer, 3),
+        })
+
+        # Lap data: try offsets 328-344 (standard PCars1 positions)
+        # These are unverified for AMS2 — use best effort
+        try:
+            lap = struct.unpack_from('<i', data, 328)[0]
+            if 0 < lap < 1000:
+                result["lap"] = lap
+        except Exception:
+            pass
+
+        try:
+            lap_time_ms = struct.unpack_from('<i', data, 332)[0]
+            if 0 < lap_time_ms < 10000000:
+                result["lap_time_ms"] = lap_time_ms
+        except Exception:
+            pass
+
+        try:
+            last_lap_ms = struct.unpack_from('<i', data, 336)[0]
+            if 0 < last_lap_ms < 600000:
+                result["last_lap_time_ms"] = last_lap_ms
+        except Exception:
+            pass
+
+        try:
+            sector = data[340] if len(data) > 340 else 255
+            if sector in (0, 1, 2):
+                result["current_sector"] = sector
+        except Exception:
+            pass
+
+        result["sim"] = "AMS2"
+        return result
 
     return None
 

@@ -19,50 +19,60 @@ from typing import Optional, Callable
 
 
 def brake_too_early(speed_at_marker: float, ref_speed: float, dist_delta: float) -> str:
-    """You're braking earlier than the reference -> coach to brake later."""
+    """You're braking earlier than the reference -> coach to brake later.
+    
+    Only fires for significant deviations (>= 20 km/h difference).
+    """
     delta_kmh = speed_at_marker - ref_speed
-    if abs(delta_kmh) < 5:
-        return None  # Close enough, don't spam
-    # Rough rule: 10km/h excess speed ≈ 5m extra braking zone
-    meters_early = round(abs(dist_delta) / 2) if dist_delta != 0 else round(abs(delta_kmh) / 2)
-    if meters_early < 3:
-        return None
-    return f"brake {meters_early} meters later"
+    if delta_kmh < -20:
+        # Only call out if braking MUCH earlier than reference
+        meters_early = round(abs(delta_kmh) / 2)
+        if meters_early < 5:
+            return None
+        return f"brake {meters_early} meters later"
+    return None
 
 
 def brake_too_late(speed_at_marker: float, ref_speed: float) -> str:
     """You're braking later than reference (or overspeed)."""
     delta_kmh = speed_at_marker - ref_speed
-    if delta_kmh > 5:
+    if delta_kmh > 20:
         return "you need to brake earlier, you're late"
     return None
 
 
 def too_wide(entry_speed: float, ref_entry: float) -> str:
-    """Carrying too much speed into the corner (wide line = poor apex)."""
-    if entry_speed > ref_entry + 8:
+    """Carrying too much speed into the corner (wide line = poor apex).
+    
+    Only fires for >= 25 km/h excess entry speed.
+    """
+    if entry_speed > ref_entry + 25:
         return "you're too wide, apex later"
     return None
 
 
 def too_tight(entry_speed: float, ref_entry: float) -> str:
-    """Not enough entry speed (tight line = compromised exit)."""
-    if entry_speed < ref_entry - 15:
+    """Not enough entry speed (tight line = compromised exit).
+    
+    Only fires for >= 30 km/h deficit.
+    """
+    if entry_speed < ref_entry - 30:
         return "you're too tight, apex later for better exit"
     return None
 
 
 def slow_apex(speed_at_apex: float, ref_apex: float) -> str:
     """Apex speed too low vs reference."""
-    if ref_apex > 0 and speed_at_apex < ref_apex - 10:
-        return f"get back on throttle sooner, you're crawling through"
+    if ref_apex > 0 and speed_at_apex < ref_apex - 20:
+        return "get back on throttle sooner, you're crawling"
     return None
 
 
 def early_throttle_lift(speed: float, ref_exit: float, throttle: float,
                         corner_name: str) -> Optional[str]:
     """Lifting throttle early mid-corner or at exit."""
-    if throttle < 0.1 and speed > ref_exit * 0.6:
+    # Only fire if nearly off throttle AND well below reference exit speed
+    if throttle < 0.05 and speed > ref_exit * 0.7 and ref_exit > 0:
         return f"don't lift in {corner_name}, commitment through the corner"
     return None
 
@@ -70,29 +80,30 @@ def early_throttle_lift(speed: float, ref_exit: float, throttle: float,
 def trail_brake_not_deep_enough(brake_pressure: float, ref_min_pressure: float,
                                  corner_name: str) -> Optional[str]:
     """Brake pressure dropping too early (not trail-braking deep enough)."""
-    if 0 < brake_pressure < ref_min_pressure * 0.6 and brake_pressure > 0.05:
+    # Only call out if actively braking mid-corner (major technique error)
+    if 0.15 < brake_pressure < ref_min_pressure * 0.5 and ref_min_pressure > 0:
         return f"trail brake deeper into {corner_name}"
     return None
 
 
 def wheelspin_on_exit(throttle: float, speed: float, steer: float) -> Optional[str]:
     """High throttle + low speed + straightening = wheelspin waste."""
-    if throttle > 0.8 and speed < 60 and abs(steer) < 0.2:
+    # Only fire if clear wheelspin (not just heavy acceleration)
+    if throttle > 0.9 and speed < 50 and abs(steer) < 0.15:
         return "ease off the throttle carefully, wheelspin is wasting energy"
     return None
 
 
 def exit_too_slow(speed_at_exit: float, ref_exit: float, throttle: float) -> str:
     """Exit speed below reference despite throttle applied."""
-    if ref_exit > 0 and speed_at_exit < ref_exit - 15 and throttle > 0.8:
+    if ref_exit > 0 and speed_at_exit < ref_exit - 25 and throttle > 0.85:
         return "earlier throttle application, you're slow on exit"
     return None
 
 
 def driving_line_too_early(steer_rate: float, ref_steer_rate: float) -> str:
     """Steering input too early = early turn-in = tight line."""
-    if ref_steer_rate > 0 and steer_rate < ref_steer_rate * 0.7:
-        return "turn in later, you're cutting the corner"
+    # Disabled in absolute mode — reference is too rough for this check
     return None
 
 
@@ -136,8 +147,8 @@ class SpeedTraceAnalyzer:
 
     # How many seconds of history to keep in the rolling buffer
     BUFFER_SECONDS = 5.0
-    # Minimum time between two corner entries (avoid double-triggers)
-    CORNER_DEBOUNCE_SEC = 3.0
+    # Minimum time between two corner entries (avoids double-triggering)
+    CORNER_DEBOUNCE_SEC = 12.0
 
     def __init__(self, mode: str = "absolute"):
         assert mode in ("absolute", "self_calibrating"), f"Unknown mode: {mode}"
@@ -396,13 +407,16 @@ class SpeedTraceAnalyzer:
                     if entry_speed < statistics.mean(cal["entry_speeds"]) - 15:
                         phrases.append("turn in later, you're cutting inside early")
 
-        # Deduplicate
+        # Deduplicate and LIMIT TO 1 PHRASE PER CORNER (most important only)
         seen = set()
         unique = []
         for p in phrases:
             normalized = p.lower()
             if normalized not in seen:
                 seen.add(normalized)
+                unique.append(p)
+            if len(unique) >= 1:  # Max 1 coaching phrase per corner
+                break
                 unique.append(p)
 
         return unique

@@ -69,6 +69,8 @@ class CoachingState:
     # Track corners list for sequential corner detection
     track_corners: list = field(default_factory=list)
     corner_index: int = 0
+    # Track/car cache to avoid re-parsing on every tick
+    _last_track_cache_key: str = ""
 
 
 def load_telemetry():
@@ -248,8 +250,19 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
     return ref
 
 
-def speak(text: str, voice: str = "libritts_r-male", async_: bool = True):
-    """Speak text via sherpa-onnx TTS."""
+def speak(text: str, voice: str = "libritts_r-male", async_: bool = True,
+          during_game: bool = False):
+    """Speak text via sherpa-onnx TTS.
+    
+    During gaming sessions (during_game=True), audio playback is suppressed
+    because playing audio through the default device steals focus from
+    games using exclusive audio modes (WASAPI/DSound), causing crashes.
+    Coaching text is logged to console instead.
+    """
+    print(f"[coach] 💬 {text}", flush=True)
+    if during_game:
+        # Audio suppressed during gaming — just log, don't play
+        return
     try:
         cmd = [
             "powershell", "-ExecutionPolicy", "Bypass", "-File",
@@ -481,7 +494,7 @@ def lap_complete_coaching(lap_time_ms: int, pb_ms: int, lap_count: int,
             return f"lap complete, {lap_time_s:.1f} seconds. {delta_str} off pace."
 
 
-def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
+def generate_coaching(state: CoachingState, telemetry: dict, audio_enabled: bool = False) -> Optional[str]:
     """Main coaching generation logic. Returns a coaching phrase or None."""
 
     now = time.time()
@@ -502,7 +515,11 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
     ts = telemetry.get("timestamp", now)
 
     # ── Update reference pace data when track/car changes ───────────────────
-    if current_track or current_car:
+    # Only update when the track/car combination ACTUALLY changes (not every tick)
+    # Use a cache key to avoid re-parsing and reloading every 0.5 seconds
+    track_cache_key = f"{current_track or ''}|{current_car or ''}"
+    if track_cache_key != state._last_track_cache_key:
+        state._last_track_cache_key = track_cache_key
         ref = get_current_ref(state, telemetry)
         if ref and ref != state.current_ref:
             state.current_ref = ref
@@ -512,7 +529,7 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
             print(f"[coach] Reference pace loaded: {car_n} @ {track_n}", flush=True)
             if ref_ms > 0:
                 ref_s = ref_ms / 1000
-                speak(f"Reference pace loaded. {car_n} at {track_n}. Target: {ref_s:.1f} seconds.", async_=False)
+                speak(f"Reference pace loaded. {car_n} at {track_n}. Target: {ref_s:.1f} seconds.", async_=False, during_game=not audio_enabled)
             # Reset corner index on track change
             state.corner_index = 0
 
@@ -550,9 +567,9 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
 
         # Also detect corner entry via steering spike (independent of sector)
         # Only trigger if speed is in corner range and we're not braking hard on a straight
-        if (speed > 40 and speed < 260
-                and abs(steer) > 0.4   # strong steering input
-                and brake < 0.6        # not ABS-fixing a lock-up
+        if (speed > 80 and speed < 300
+                and abs(steer) > 0.6   # high threshold = only real corner entries
+                and brake < 0.3         # not braking hard (ABS active = mid-corner)
                 and state.trace_analyzer is not None):
             corner_key = (state.track_corners[state.corner_index]
                           if state.track_corners and state.corner_index < len(state.track_corners)
@@ -575,7 +592,7 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
                     state.last_corner_callout = ph
                     corner_anounce = f"corner check. {ph}"
                     print(f"[coach] [corner] >>> {corner_anounce}", flush=True)
-                    speak(corner_anounce)
+                    speak(corner_anounce, during_game=not audio_enabled)
 
         coaching = lap_complete_coaching(
             lap_time_ms,
@@ -643,10 +660,36 @@ def main():
         help="absolute: compare vs community reference. "
              "self_calibrating: compare vs your own rolling average.",
     )
+    parser.add_argument(
+        "--track", "-t",
+        type=str, default="",
+        help="Manually set track name (e.g. spa, imola, monza). "
+             "Use this when AMS2 UDP doesn't provide track name.",
+    )
+    parser.add_argument(
+        "--car", "-c",
+        type=str, default="",
+        help="Manually set car name (e.g. f-v10-gen2, stock-cruze-22). "
+             "Use this when AMS2 UDP doesn't provide car name.",
+    )
+    parser.add_argument(
+        "--audio", "-a",
+        action="store_true",
+        default=False,
+        help="Enable TTS audio playback. "
+             "DEFAULT IS SAFE MODE (no audio) — only use when NOT driving.",
+    )
     args = parser.parse_args()
 
     print("[coach] Zeus SimRace Coach v0.3", flush=True)
     print(f"[coach] Mode: {args.mode}", flush=True)
+    # Audio is DISABLED by default for safety. Use --audio to enable when NOT driving.
+    audio_enabled = args.audio
+    print(f"[coach] Audio: {'ENABLED' if audio_enabled else 'DISABLED (safe for gaming — default)'}", flush=True)
+    if args.track:
+        print(f"[coach] Manual track override: {args.track}", flush=True)
+    if args.car:
+        print(f"[coach] Manual car override: {args.car}", flush=True)
     print(f"[coach] Reading from: {STATE_FILE}", flush=True)
 
     state = CoachingState()
@@ -657,6 +700,27 @@ def main():
     print(f"[coach] Pace data loaded: {list(state.pace_data.keys())}", flush=True)
     print(f"[coach] Personal best: {state.personal_best}", flush=True)
 
+    # Apply manual track/car overrides (useful when UDP doesn't provide track name)
+    if args.track or args.car:
+        override_telemetry = {
+            "current_track": args.track,
+            "current_car": args.car,
+            "sim": "AMS2",
+        }
+        # Force reference loading with manual override
+        ref = get_current_ref(state, override_telemetry)
+        if ref:
+            state.current_ref = ref
+            track_n = ref.get("track_name", "?")
+            car_n = ref.get("car_name", "?")
+            ref_ms = ref.get("ref_lap", 0)
+            print(f"[coach] >>> Reference pace loaded: {car_n} @ {track_n} "
+                  f"(manual override)", flush=True)
+
+    # Pre-initialize the track cache key so we don't re-parse on first tick
+    if args.track or args.car:
+        state._last_track_cache_key = f"{args.track or ''}|{args.car or ''}"
+
     last_telemetry = {}
 
     print("[coach] Monitoring telemetry... Press Ctrl+C to stop.", flush=True)
@@ -665,11 +729,18 @@ def main():
         while True:
             telemetry = load_telemetry()
 
+            # Apply manual track/car overrides if set (AMS2 UDP doesn't send track names)
+            if args.track:
+                telemetry["current_track"] = args.track
+            if args.car:
+                telemetry["current_car"] = args.car
+
             if telemetry and telemetry != last_telemetry:
-                coaching = generate_coaching(state, telemetry)
+                coaching = generate_coaching(state, telemetry, audio_enabled=audio_enabled)
                 if coaching:
                     print(f"[coach] >>> {coaching}", flush=True)
-                    speak(coaching)
+                    # during_game=True: audio suppressed during gaming to prevent crash
+                    speak(coaching, during_game=not audio_enabled)
 
             last_telemetry = telemetry
             time.sleep(0.5)  # Poll at ~2Hz
