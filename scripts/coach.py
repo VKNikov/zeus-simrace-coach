@@ -3,6 +3,8 @@
 SimRacing AI Coach
 Reads telemetry, generates coaching phrases, speaks them via TTS.
 Uses community pace data for absolute reference comparison.
+Speed trace analyzer provides per-corner coaching (brake 10m early,
+too wide, trail brake deeper, etc.).
 """
 
 import json
@@ -11,6 +13,7 @@ import os
 import subprocess
 import sys
 import statistics
+import re
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -28,11 +31,18 @@ SPEAK_PS1 = Path.home() / ".openclaw" / "tools" / "sherpa-onnx-tts" / "speak.ps1
 SCRIPT_DIR = Path(__file__).parent.parent / "references"
 PACE_DATA_FILE = SCRIPT_DIR / "pace_data.json"
 
+# Speed trace analyzer
+sys.path.insert(0, str(Path(__file__).parent))
+from speed_trace_analyzer import (
+    SpeedTraceAnalyzer, build_corner_profiles, CornerSnapshot
+)
+
 
 @dataclass
 class CoachingState:
     """Tracks coaching state across laps."""
-    level: str = "intermediate"  # beginner, intermediate, advanced
+    level: str = "intermediate"   # beginner, intermediate, advanced
+    trace_mode: str = "absolute"  # absolute | self_calibrating
     last_sector_time: int = 0
     last_lap_time: int = 0
     last_sector: int = 0
@@ -42,12 +52,23 @@ class CoachingState:
     consistency_scores: list = field(default_factory=list)
     personal_best: dict = field(default_factory=dict)
     last_coaching_time: float = 0
-    cooldown_seconds: float = 3.0  # Minimum seconds between coaching calls
+    cooldown_seconds: float = 3.0   # Minimum seconds between coaching calls
     last_brake_callout: str = ""
     last_throttle_callout: str = ""
+    last_corner_callout: str = ""
+    corner_callout_cooldown: float = 12.0  # seconds between corner callouts
     # Current reference data
     current_ref: dict = field(default_factory=dict)
     pace_data: dict = field(default_factory=dict)
+    # Speed trace analyzer
+    trace_analyzer: Optional[SpeedTraceAnalyzer] = None
+    # Last known corner key (for change detection)
+    last_corner_key: str = ""
+    # Corner profiles for current track
+    corner_profiles: dict = field(default_factory=dict)
+    # Track corners list for sequential corner detection
+    track_corners: list = field(default_factory=list)
+    corner_index: int = 0
 
 
 def load_telemetry():
@@ -122,6 +143,7 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
           spa: { track_name, pro_pace_s1/s2/s3, pro_pace_lap, good_pace, avg_pace, ... }
           monza: { ... }
           ... (24 tracks)
+    Also builds corner profiles for the speed trace analyzer.
     """
     track = telemetry.get("current_track", "")
     car = telemetry.get("current_car", "")
@@ -137,10 +159,13 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
 
     # Determine which sim section to use
     sim_section = None
+    sim_key = ""
     if sim == "ams2" and "ams2" in pace:
         sim_section = pace["ams2"]
+        sim_key = "ams2"
     elif sim == "acc" and "acc" in pace:
         sim_section = pace["acc"]
+        sim_key = "acc"
     else:
         # Fallback: search both sections
         for key in ["ams2", "acc"]:
@@ -149,6 +174,7 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
                 for tk, td in tracks.items():
                     if tk.lower() in track_lower or track_lower in tk.lower():
                         sim_section = pace[key]
+                        sim_key = key
                         break
                 if sim_section:
                     break
@@ -176,18 +202,18 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
         "track_key": track_key,
         "track_name": track_data.get("track_name", track_key),
         "car_name": ref_car,
-        "sim": "ams2" if sim_section is pace.get("ams2") else "acc",
+        "sim": sim_key,
     }
 
     # AMS2 format: pro_pace, good_pace, avg_pace (flat seconds)
-    if "ams2" in pace and sim_section is pace["ams2"]:
+    if sim_key == "ams2":
         pro = track_data.get("pro_pace", 0)
         good = track_data.get("good_pace", 0)
         avg = track_data.get("avg_pace", 0)
         ref["pro_pace_ms"] = pro * 1000
         ref["good_pace_ms"] = good * 1000
         ref["avg_pace_ms"] = avg * 1000
-        ref["ref_lap"] = pro * 1000  # pro pace as primary reference
+        ref["ref_lap"] = pro * 1000
         ref["braking_zones"] = track_data.get("braking_zones", [])
         ref["acceleration_zones"] = track_data.get("acceleration_zones", [])
 
@@ -208,6 +234,16 @@ def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
         ref["ref_lap"] = track_data.get("pro_pace_lap", 0) * 1000
         ref["braking_zones"] = track_data.get("braking_zones", [])
         ref["acceleration_zones"] = track_data.get("acceleration_zones", [])
+
+    # ── Build corner profiles for speed trace analyzer ──────────────────────
+    profiles = build_corner_profiles(pace, track_key, sim_key)
+    if profiles:
+        state.corner_profiles = profiles
+        state.track_corners = list(profiles.keys())
+        # Init or reinit the trace analyzer with the new profiles
+        state.trace_analyzer = SpeedTraceAnalyzer(mode=state.trace_mode)
+        state.trace_analyzer.set_corner_profiles(profiles)
+        print(f"[coach] Corner profiles loaded: {len(profiles)} corners — {list(profiles.keys())}", flush=True)
 
     return ref
 
@@ -456,14 +492,16 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
     brake = telemetry.get("brake", 0)
     throttle = telemetry.get("throttle", 0)
     gear = telemetry.get("gear", 0)
-    sector = telemetry.get("sector", 255)
+    sector = telemetry.get("current_sector", 255)
     lap_time_ms = telemetry.get("lap_time_ms", 0)
     lap = telemetry.get("lap", 0)
     rpm = telemetry.get("rpm", 0)
+    steer = telemetry.get("steer", 0)
     current_track = telemetry.get("current_track", "")
     current_car = telemetry.get("current_car", "")
+    ts = telemetry.get("timestamp", now)
 
-    # Update reference pace data when track/car changes
+    # ── Update reference pace data when track/car changes ───────────────────
     if current_track or current_car:
         ref = get_current_ref(state, telemetry)
         if ref and ref != state.current_ref:
@@ -472,13 +510,73 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
             car_n = ref.get("car_name", "?")
             ref_ms = ref.get("ref_lap", 0)
             print(f"[coach] Reference pace loaded: {car_n} @ {track_n}", flush=True)
-            # Announce reference pace at session start
             if ref_ms > 0:
                 ref_s = ref_ms / 1000
                 speak(f"Reference pace loaded. {car_n} at {track_n}. Target: {ref_s:.1f} seconds.", async_=False)
+            # Reset corner index on track change
+            state.corner_index = 0
 
-    # Lap completion detection
+    # ── Speed trace analyzer: feed telemetry ────────────────────────────────
+    if state.trace_analyzer is not None:
+        state.trace_analyzer.update(
+            speed=speed,
+            brake=brake,
+            throttle=throttle,
+            steer=steer,
+            gear=gear,
+            rpm=rpm,
+            timestamp=ts,
+        )
+
+        # Detect corner entry via sector change
+        prev_sector = state.last_sector
+        if sector != prev_sector and prev_sector != 255:
+            # Sector changed — evaluate the corner we just finished
+            if state.trace_analyzer is not None and state.last_corner_key:
+                phrases = state.trace_analyzer.evaluate()
+                if phrases:
+                    for ph in phrases:
+                        if (now - state.last_coaching_time >= state.cooldown_seconds
+                                and ph != state.last_corner_callout):
+                            state.last_corner_callout = ph
+                            state.last_coaching_time = now
+                            corner_anounce = f"corner check. {ph}"
+                            print(f"[coach] [corner] >>> {corner_anounce}", flush=True)
+                            return corner_anounce
+
+            # Advance to next corner in sequence
+            if state.track_corners and state.corner_index < len(state.track_corners) - 1:
+                state.corner_index += 1
+
+        # Also detect corner entry via steering spike (independent of sector)
+        # Only trigger if speed is in corner range and we're not braking hard on a straight
+        if (speed > 40 and speed < 260
+                and abs(steer) > 0.4   # strong steering input
+                and brake < 0.6        # not ABS-fixing a lock-up
+                and state.trace_analyzer is not None):
+            corner_key = (state.track_corners[state.corner_index]
+                          if state.track_corners and state.corner_index < len(state.track_corners)
+                          else f"S{sector}_corner")
+            entered = state.trace_analyzer.detect_corner_entry(sector, corner_key)
+            if entered:
+                state.last_corner_key = corner_key
+                state.last_sector = sector
+                return None  # No phrase yet — wait for corner to complete
+
+        state.last_sector = sector
+
+    # ── Lap completion detection ────────────────────────────────────────────
     if lap > state.lap_count and lap_time_ms > 1000:
+        # Evaluate any remaining corner
+        if state.trace_analyzer is not None and state.last_corner_key:
+            phrases = state.trace_analyzer.evaluate()
+            for ph in phrases:
+                if ph != state.last_corner_callout:
+                    state.last_corner_callout = ph
+                    corner_anounce = f"corner check. {ph}"
+                    print(f"[coach] [corner] >>> {corner_anounce}", flush=True)
+                    speak(corner_anounce)
+
         coaching = lap_complete_coaching(
             lap_time_ms,
             state.personal_best.get("lap_ms", 0),
@@ -489,6 +587,7 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
         state.lap_count = lap
         state.last_coaching_time = now
         state.lap_times.append(lap_time_ms)
+        state.corner_index = 0   # reset at lap start
 
         # Update PB
         if state.personal_best.get("lap_ms", 0) == 0 or lap_time_ms < state.personal_best["lap_ms"]:
@@ -498,7 +597,7 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
         if coaching and len(coaching) < 200:
             return coaching
 
-    # Brake coaching
+    # ── Brake coaching (high-level) ──────────────────────────────────────
     brake_call = brake_coaching(speed, brake, throttle, gear,
                                  state.current_ref, telemetry, sector)
     if brake_call and brake_call != state.last_brake_callout:
@@ -506,24 +605,24 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
         state.last_coaching_time = now
         return brake_call
 
-    # Speed at braking zone (only if we have reference data)
-    if state.current_ref and "braking_zones" in state.current_ref and brake > 0.5:
+    # ── Speed at braking zone (only if we have reference data) ─────────────
+    if (state.current_ref and state.current_ref.get("braking_zones")
+            and brake > 0.5 and speed > 50):
         speed_call = speed_at_braking_zone(speed, state.current_ref, sector)
         if speed_call and speed_call != state.last_brake_callout:
-            # Don't spam - throttle cooldown
             if now - state.last_coaching_time > 8:
                 state.last_brake_callout = speed_call
                 state.last_coaching_time = now
                 return speed_call
 
-    # Throttle coaching
+    # ── Throttle coaching ─────────────────────────────────────────────────
     throttle_call = throttle_coaching(throttle, brake, speed, gear)
     if throttle_call and throttle_call != state.last_throttle_callout:
         state.last_throttle_callout = throttle_call
         state.last_coaching_time = now
         return throttle_call
 
-    # Consistency check every 3 laps
+    # ── Consistency check every 3 laps ────────────────────────────────────
     if len(state.lap_times) >= 3 and len(state.lap_times) % 3 == 0:
         cons_call = consistency_coaching(state.lap_times, state.personal_best.get("lap_ms", 0))
         if cons_call:
@@ -534,10 +633,25 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
 
 
 def main():
-    print("[coach] Zeus SimRace Coach v0.2", flush=True)
+    import argparse
+
+    parser = argparse.ArgumentParser(description="Zeus SimRace Coach")
+    parser.add_argument(
+        "--mode", "-m",
+        choices=["absolute", "self_calibrating"],
+        default="absolute",
+        help="absolute: compare vs community reference. "
+             "self_calibrating: compare vs your own rolling average.",
+    )
+    args = parser.parse_args()
+
+    print("[coach] Zeus SimRace Coach v0.3", flush=True)
+    print(f"[coach] Mode: {args.mode}", flush=True)
     print(f"[coach] Reading from: {STATE_FILE}", flush=True)
 
     state = CoachingState()
+    state.pace_mode = args.mode
+    state.trace_mode = args.mode
     state.personal_best = load_pb()
     state.pace_data = load_pace_data()
     print(f"[coach] Pace data loaded: {list(state.pace_data.keys())}", flush=True)
