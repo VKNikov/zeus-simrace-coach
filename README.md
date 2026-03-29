@@ -17,7 +17,7 @@ Real-time AI voice coaching for sim racing — powered by Zeus (OpenClaw) + loca
 |-----|------|--------|
 | Assetto Corsa Competizione | 9000 | ✅ Tested |
 | Assetto Corsa / AC Evo | 9996 | ✅ Tested |
-| Automobilista 2 | 9900 | ✅ Tested |
+| Automobilista 2 | 5606 (PC1 protocol) | ✅ Tested |
 
 ## Quick Start
 
@@ -77,7 +77,7 @@ You'll hear voice coaching in your headset as you drive.
 │  ┌────────────────────┐     ┌────────────────────────────┐  │
 │  │ telemetry_reader.py│ ──► │ ~/.openclaw/var/           │  │
 │  │ (UDP listener)     │     │   simrace_telemetry.json  │  │
-│  │ ports: 9000/9996/9900     │   simrace_laps.json        │  │
+│  │ ports: 9000/9996/5606     │   simrace_laps.json        │  │
 │  └────────────────────┘     │   simrace_personal_best.json│  │
 │                              └────────────────────────────┘  │
 │  ┌────────────────────┐                                    │

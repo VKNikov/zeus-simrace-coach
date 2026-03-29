@@ -111,9 +111,10 @@ Offset  Size  Field
 
 ## AMS2 (Automobilista 2)
 
-**Port:** 9900 (UDP)
+**Port:** 5606 (UDP) — AMS2 uses Project Cars 1 protocol on this port
 
-AMS2 uses an mNaz switch broadcasting telemetry.
+AMS2 broadcasts telemetry using the Project Cars 1 UDP protocol on port 5606.
+AMS2 does NOT transmit track/car names over PC1 UDP — use shared memory or `--track`/`--car` flags.
 
 ### Packet Structure
 
