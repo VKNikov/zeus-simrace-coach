@@ -1,0 +1,8 @@
+# No external dependencies required for core functionality
+# Python 3.8+ stdlib only (socket, json, struct, threading)
+
+# Optional: faster-whisper for local voice command recognition
+# faster-whisper
+
+# Optional: openai-whisper for transcription
+# openai-whisper
