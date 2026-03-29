@@ -254,14 +254,14 @@ def speak(text: str, voice: str = "libritts_r-male", async_: bool = True,
           during_game: bool = False):
     """Speak text via sherpa-onnx TTS.
     
-    During gaming sessions (during_game=True), audio playback is suppressed
-    because playing audio through the default device steals focus from
-    games using exclusive audio modes (WASAPI/DSound), causing crashes.
-    Coaching text is logged to console instead.
+    Audio is ALWAYS suppressed when during_game=True.
+    Games using WASAPI/DSound exclusive mode will crash if any other
+    app plays audio through the same device. No exceptions.
+    Coaching text is logged to console only.
     """
     print(f"[coach] 💬 {text}", flush=True)
     if during_game:
-        # Audio suppressed during gaming — just log, don't play
+        # COMPLETELY silent during gaming — no audio whatsoever
         return
     try:
         cmd = [
@@ -583,7 +583,7 @@ def generate_coaching(state: CoachingState, telemetry: dict, audio_enabled: bool
         state.last_sector = sector
 
     # ── Lap completion detection ────────────────────────────────────────────
-    if lap > state.lap_count and lap_time_ms > 1000:
+    if lap > state.lap_count and 30000 < lap_time_ms < 600000:
         # Evaluate any remaining corner
         if state.trace_analyzer is not None and state.last_corner_key:
             phrases = state.trace_analyzer.evaluate()
@@ -718,8 +718,9 @@ def main():
                   f"(manual override)", flush=True)
 
     # Pre-initialize the track cache key so we don't re-parse on first tick
+    # (Empty at startup so first tick triggers reference loading)
     if args.track or args.car:
-        state._last_track_cache_key = f"{args.track or ''}|{args.car or ''}"
+        state._last_track_cache_key = ""  # Force refresh on first tick
 
     last_telemetry = {}
 

@@ -392,7 +392,7 @@ def _detect_lap_completion(telemetry):
     last_lap = telemetry.get("last_lap_time_ms", 0)
 
     # Lap completed when lap number increases and we have a valid last lap time
-    if lap_num > _last_lap_number and last_lap > 0:
+    if lap_num > _last_lap_number and 30000 < last_lap < 600000:
         lap_record = {
             "lap": _last_lap_number,
             "time_ms": last_lap,
@@ -406,7 +406,8 @@ def _detect_lap_completion(telemetry):
               f"({telemetry.get('current_track', '')} / {telemetry.get('current_car', '')})", flush=True)
 
         # Update personal best
-        if not personal_best or last_lap < personal_best.get("lap_ms", 999999999):
+        # Only accept reasonable lap times (30s to 10min — filter garbage from wrong offsets)
+        if 30000 < last_lap < 600000 and (not personal_best or last_lap < personal_best.get("lap_ms", 999999999)):
             personal_best = {
                 "lap_ms": last_lap,
                 "lap": _last_lap_number,
