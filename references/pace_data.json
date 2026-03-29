@@ -1,0 +1,146 @@
+{
+  "_format": "zeus-simrace-coach pace reference v1",
+  "_notes": "Community reference sector times + braking points. Sources: LapLegends leaderboards, TTotW videos (YouTube), Scribd AMS2 cheat sheet. Sectors are S1/S2/S3 split times in seconds. Braking points are named corners with reference advice.",
+  "_last_updated": "2026-03-29",
+
+  "ams2": {
+    "interlagos": {
+      "_track": "Autodromo Jose Carlos Pace (Interlagos), 4.309km",
+      "_ Cars": [
+        "Stock Car Cruze (2022/2024)",
+        "F1 Gen",
+        "Stock Car 2021"
+      ],
+      "cars": {
+        "stock_cruze": {
+          "_name": "Stock Car Cruze (2022/2024)",
+          "ref_lap_time_s": 97.634,
+          "_source": "TTotW YouTube 01:39.634 (2025-05, W#1 time trial)",
+          "_community_best": "97.1s (LapLegends)",
+          "sectors": {
+            "S1": 24.1,
+            "S2": 50.5,
+            "S3": 22.9
+          },
+          "_sector_notes": "S1:Start->T1; S2:T1->T4(Descida do Lago); S3:T4->Finish",
+          "braking_zones": {
+            "T1_Descida": {
+              "_name": "T1 Descida (big braking, flat-out entry)",
+              "_desc": "Heavy braking from ~280km/h. Classic Interlagos T1 - descend and turn, trail brake.",
+              "_advice": "Brake 100m boards, rotate on throttle through the hill"
+            },
+            "T3_Laranja": {
+              "T3": {
+                "_name": "T3 Laranjinha (Esses do Lago)",
+                "_desc": "Quick left-right through the lake section. Heavy braking required.",
+                "_advice": "Brake before the first apex, use kerb on exit"
+              }
+            },
+            "T4_Ferradura": {
+              "_name": "T4 Ferradura (the Bunch of Horseshoes)",
+              "_desc": "Heavy braking into the hairpin. The track drops downhill here.",
+              "_advice": "Heavy brake 100m boards, swing wide entry"
+            },
+            "Juncao": {
+              "_name": "Juncao (curva da uniao)",
+              "_desc": "Medium-speed right-hand curve joining the two sections.",
+              "_advice": "Can be taken flat in Stock Car with good exit for the back straight"
+            },
+            "T10_Cotovelo": {
+              "_name": "T10 Cotovelo (the Elbow)",
+              "_desc": "Last sector chicane before the main straight.",
+              "_advice": "Late apex, early throttle"
+            }
+          },
+          "pace_notes": [
+            "Stock Car Cruze is stable but heavy under braking - understeer tendency",
+            "Corolla is nimbler but less composed",
+            "Best exit: Juncao to power up hill to T1"
+          ]
+        },
+        "f1_gen": {
+          "_name": "F1 Gen (current gen F1 cars)",
+          "ref_lap_time_s": 68.0,
+          "_source": "Community reference (Steam discussions)",
+          "sectors": {
+            "S1": 18.5,
+            "S2": 28.0,
+            "S3": 21.5
+          },
+          "braking_zones": {
+            "T1": {
+              "_name": "T1 Descida",
+              "_desc": "Heavy braking from ~320km/h",
+              "_advice": "Trail brake deep into T1, flat-out through the hill"
+            },
+            "T4": {
+              "_name": "T4 Ferradura",
+              "_desc": "Heavy braking hairpin",
+              "_advice": "Late apex essential"
+            }
+          }
+        }
+      }
+    },
+
+    "curitiba_oval": {
+      "_track": "Autodromo Internacional de Curitiba (Exterior/Anel Externo)",
+      "cars": {
+        "stock_cruze": {
+          "_name": "Stock Car Cruze",
+          "_notes": "See RPM Esports video: key is wide line through Laranja, close early for curva da Vitoria"
+        }
+      }
+    }
+  },
+
+  "acc": {
+    "monza": {
+      "_track": "Autodromo Nazionale Monza, 5.793km",
+      "cars": {
+        "bmw_m4_gt3": {
+          "_name": "BMW M4 GT3",
+          "ref_lap_time_s": 101.5,
+          "_source": "ACC community",
+          "sectors": {
+            "S1": 33.0,
+            "S2": 38.0,
+            "S3": 30.5
+          },
+          "braking_zones": {
+            "T1": {
+              "_name": "T1 Rettifilo",
+              "_desc": "Full throttle entry, heavy braking",
+              "_advice": "Late braking 150m board"
+            },
+            "T2": {
+              "_name": "T2 Variante della Roggia",
+              "_desc": "Chicane, sequential left-right",
+              "_advice": "Trail brake on first apex, early throttle second"
+            },
+            "T4": {
+              "_name": "T4 Lesmo 1",
+              "_desc": "Fast right-hand sweeper",
+              "_advice": "Can be taken almost flat"
+            },
+            "T5": {
+              "_name": "T5 Lesmo 2",
+              "_desc": "Medium speed right",
+              "_advice": "Brake 100m, rotate with throttle"
+            },
+            "T7": {
+              "_name": "T7 Tamburello",
+              "_desc": "Fast chicane left-right",
+              "_advice": "Trail brake, sequential"
+            },
+            "T8_T9": {
+              "_name": "T8/T9 Chicane Ascari",
+              "_desc": "Double chicane",
+              "_advice": "Use kerbs, sequential"
+            }
+          }
+        }
+      }
+    }
+  }
+}

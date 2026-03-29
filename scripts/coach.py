@@ -2,6 +2,7 @@
 """
 SimRacing AI Coach
 Reads telemetry, generates coaching phrases, speaks them via TTS.
+Uses community pace data for absolute reference comparison.
 """
 
 import json
@@ -23,6 +24,10 @@ PB_FILE = STATE_DIR / "simrace_personal_best.json"
 # TTS
 SPEAK_PS1 = Path.home() / ".openclaw" / "tools" / "sherpa-onnx-tts" / "speak.ps1"
 
+# Pace data
+SCRIPT_DIR = Path(__file__).parent.parent / "references"
+PACE_DATA_FILE = SCRIPT_DIR / "pace_data.json"
+
 
 @dataclass
 class CoachingState:
@@ -40,6 +45,9 @@ class CoachingState:
     cooldown_seconds: float = 3.0  # Minimum seconds between coaching calls
     last_brake_callout: str = ""
     last_throttle_callout: str = ""
+    # Current reference data
+    current_ref: dict = field(default_factory=dict)
+    pace_data: dict = field(default_factory=dict)
 
 
 def load_telemetry():
@@ -71,7 +79,19 @@ def load_pb():
             with open(PB_FILE) as f:
                 return json.load(f)
     except Exception:
-        return {}
+        pass
+    return {}
+
+
+def load_pace_data():
+    """Load community pace reference data."""
+    try:
+        if PACE_DATA_FILE.exists():
+            with open(PACE_DATA_FILE) as f:
+                return json.load(f)
+    except Exception as e:
+        print(f"[coach] Warning: Could not load pace data: {e}", flush=True)
+    return {}
 
 
 def save_pb(pb):
@@ -81,6 +101,40 @@ def save_pb(pb):
             json.dump(pb, f)
     except Exception:
         pass
+
+
+def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
+    """Get reference pace data for the current track/car combo."""
+    track = telemetry.get("current_track", "")
+    car = telemetry.get("current_car", "")
+
+    if not track or not car:
+        return None
+
+    # Normalize keys
+    track_lower = track.lower()
+    car_lower = car.lower().replace(" ", "_").replace("-", "_")
+
+    pace = state.pace_data
+
+    # Try sim-specific lookup
+    for sim_key, sim_data in pace.items():
+        if not isinstance(sim_data, dict):
+            continue
+        for track_key, track_data in sim_data.items():
+            if track_key.lower() in track_lower or track_lower in track_key.lower():
+                cars = track_data.get("cars", {})
+                for car_key, car_data in cars.items():
+                    if car_key.lower() in car_lower or car_lower in car_key.lower():
+                        return {
+                            "track_name": track_key,
+                            "car_name": car_data.get("_name", car_key),
+                            "ref_lap": car_data.get("ref_lap_time_s", 0) * 1000,  # ms
+                            "sectors": car_data.get("sectors", {}),
+                            "braking_zones": car_data.get("braking_zones", {}),
+                            "sim": sim_key
+                        }
+    return None
 
 
 def speak(text: str, voice: str = "libritts_r-male", async_: bool = True):
@@ -107,7 +161,7 @@ def delta_description(delta_ms: float) -> str:
     elif delta_ms > 0:
         secs = delta_ms / 1000
         if secs < 0.5:
-            return f"plus one tenth"
+            return "plus one tenth"
         elif secs < 1.0:
             return f"plus {int(secs * 10) * 2} hundredths"
         else:
@@ -115,15 +169,21 @@ def delta_description(delta_ms: float) -> str:
     else:
         secs = abs(delta_ms) / 1000
         if secs < 0.5:
-            return f"minus one tenth"
+            return "minus one tenth"
         elif secs < 1.0:
             return f"minus {int(secs * 10) * 2} hundredths"
         else:
             return f"minus {secs:.1f} seconds"
 
 
-def brake_coaching(speed: float, brake: float, throttle: float, gear: int) -> Optional[str]:
-    """Generate brake point coaching."""
+def delta_description_abs(delta_ms: float) -> str:
+    """Absolute delta (reference) in spoken form."""
+    return delta_description(delta_ms)
+
+
+def brake_coaching(speed: float, brake: float, throttle: float, gear: int,
+                   current_ref: dict, telemetry: dict, sector: int) -> Optional[str]:
+    """Generate brake point coaching comparing speed to reference."""
     if brake < 0.1:
         return None
 
@@ -136,6 +196,30 @@ def brake_coaching(speed: float, brake: float, throttle: float, gear: int) -> Op
         else:
             return "good brake pressure. Smooth and progressive."
 
+    return None
+
+
+def speed_at_braking_zone(speed: float, current_ref: dict, sector: int) -> Optional[str]:
+    """Compare current speed at a braking zone vs reference, return coaching."""
+    if not current_ref or "braking_zones" not in current_ref:
+        return None
+
+    bz = current_ref.get("braking_zones", {})
+    # Map sector number to braking zone
+    sector_bz_map = {
+        0: ["T1_Descida", "T1", "T3_Laranja"],
+        1: ["T4_Ferradura", "T4", "Juncao"],
+        2: ["T10_Cotovelo", "T10", "T8_T9", "T7"]
+    }
+
+    relevant_bz = sector_bz_map.get(sector, [])
+    for bz_name in relevant_bz:
+        if bz_name in bz:
+            info = bz[bz_name]
+            advice = info.get("_advice", "")
+            # No hard speed reference in pace data yet, just advisory
+            if advice:
+                return f"at {int(speed)} kilometres. {advice}"
     return None
 
 
@@ -156,8 +240,48 @@ def throttle_coaching(throttle: float, brake: float, speed: float, gear: int) ->
     return None
 
 
-def sector_coaching(sector: int, sector_time_ms: int, pb_sector_ms: int) -> Optional[str]:
-    """Generate sector-by-sector coaching."""
+def sector_coaching_vs_ref(sector: int, sector_time_ms: int, current_ref: dict,
+                           personal_best_ms: int) -> Optional[str]:
+    """Generate sector coaching comparing against reference AND personal best."""
+    if not current_ref:
+        # Fallback to PB-based coaching
+        if personal_best_ms <= 0:
+            return None
+        delta = sector_time_ms - personal_best_ms
+        delta_str = delta_description(delta)
+        sector_names = {0: "sector one", 1: "sector two", 2: "sector three"}
+        name = sector_names.get(sector, f"sector {sector + 1}")
+        if delta > 0:
+            return f"{name} {delta_str} vs your best."
+        return None
+
+    ref_sectors = current_ref.get("sectors", {})
+    sector_key = f"S{sector + 1}"
+    ref_s = ref_sectors.get(sector_key, 0)
+    if ref_s <= 0:
+        return None
+
+    ref_ms = ref_s * 1000
+    delta_vs_ref = sector_time_ms - ref_ms
+    delta_vs_ref_str = delta_description(delta_vs_ref)
+
+    sector_names = {0: "sector one", 1: "sector two", 2: "sector three"}
+    name = sector_names.get(sector, f"sector {sector + 1}")
+    car = current_ref.get("car_name", "reference")
+
+    if delta_vs_ref > 500:
+        return f"{name} {delta_vs_ref_str} versus {car} pace. Look for more."
+    elif delta_vs_ref > 100:
+        return f"{name} {delta_vs_ref_str} off {car} pace."
+    elif delta_vs_ref < -200:
+        return f"{name} faster than reference pace by {abs(delta_vs_ref_str)}!"
+    elif delta_vs_ref > 0:
+        return f"{name} {delta_vs_ref_str} versus reference."
+    return None
+
+
+def sector_coaching_pb(sector: int, sector_time_ms: int, pb_sector_ms: int) -> Optional[str]:
+    """Generate sector-by-sector coaching vs personal best only."""
     if pb_sector_ms <= 0:
         return None
 
@@ -199,20 +323,35 @@ def consistency_coaching(lap_times: list, pb_ms: int) -> Optional[str]:
     return None
 
 
-def lap_complete_coaching(lap_time_ms: int, pb_ms: int, lap_count: int) -> Optional[str]:
-    """Generate lap completion coaching."""
-    if pb_ms <= 0:
-        return f"lap complete, {lap_time_ms / 1000:.1f} seconds."
+def lap_complete_coaching(lap_time_ms: int, pb_ms: int, lap_count: int,
+                          current_ref: dict, personal_best: dict) -> Optional[str]:
+    """Generate lap completion coaching with absolute reference comparison."""
+    lap_time_s = lap_time_ms / 1000
 
-    delta = lap_time_ms - pb_ms
-    delta_str = delta_description(delta)
+    if current_ref and current_ref.get("ref_lap"):
+        ref_ms = current_ref["ref_lap"]
+        delta_vs_ref = lap_time_ms - ref_ms
+        delta_vs_ref_str = delta_description(delta_vs_ref)
+        car = current_ref.get("car_name", "reference")
 
-    if delta < 0:
-        return f"new personal best! {delta_str}. Lap saved."
-    elif delta < 200:
-        return f"close to personal best, {delta_str}. One more try."
+        if delta_vs_ref < 0:
+            return f"new reference! {delta_vs_ref_str} under {car} pace. Lap saved."
+        elif delta_vs_ref < 300:
+            return f"good lap, {delta_vs_ref_str} off {car} pace. {lap_time_s:.1f} seconds."
+        else:
+            return f"lap complete, {lap_time_s:.1f}. {delta_vs_ref_str} off {car} pace."
     else:
-        return f"lap complete, {lap_time_ms / 1000:.1f} seconds. {delta_str} off pace."
+        # No reference, use PB only
+        if pb_ms <= 0:
+            return f"lap complete, {lap_time_s:.1f} seconds."
+        delta = lap_time_ms - pb_ms
+        delta_str = delta_description(delta)
+        if delta < 0:
+            return f"new personal best! {delta_str}. Lap saved."
+        elif delta < 200:
+            return f"close to personal best, {delta_str}. One more try."
+        else:
+            return f"lap complete, {lap_time_s:.1f} seconds. {delta_str} off pace."
 
 
 def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
@@ -230,10 +369,29 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
     lap_time_ms = telemetry.get("lap_time_ms", 0)
     lap = telemetry.get("lap", 0)
     rpm = telemetry.get("rpm", 0)
+    current_track = telemetry.get("current_track", "")
+    current_car = telemetry.get("current_car", "")
+
+    # Update reference pace data when track/car changes
+    if current_track or current_car:
+        ref = get_current_ref(state, telemetry)
+        if ref and ref != state.current_ref:
+            state.current_ref = ref
+            print(f"[coach] Reference pace loaded: {ref['car_name']} @ {ref['track_name']}", flush=True)
+            # Announce reference pace at session start
+            if ref.get("ref_lap"):
+                ref_s = ref["ref_lap"] / 1000
+                speak(f"Reference pace loaded. {ref['car_name']} target lap: {ref_s:.1f} seconds.", async_=False)
 
     # Lap completion detection
     if lap > state.lap_count and lap_time_ms > 1000:
-        coaching = lap_complete_coaching(lap_time_ms, state.personal_best.get("lap_ms", 0), lap)
+        coaching = lap_complete_coaching(
+            lap_time_ms,
+            state.personal_best.get("lap_ms", 0),
+            lap,
+            state.current_ref,
+            state.personal_best
+        )
         state.lap_count = lap
         state.last_coaching_time = now
         state.lap_times.append(lap_time_ms)
@@ -247,11 +405,22 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
             return coaching
 
     # Brake coaching
-    brake_call = brake_coaching(speed, brake, throttle, gear)
+    brake_call = brake_coaching(speed, brake, throttle, gear,
+                                 state.current_ref, telemetry, sector)
     if brake_call and brake_call != state.last_brake_callout:
         state.last_brake_callout = brake_call
         state.last_coaching_time = now
         return brake_call
+
+    # Speed at braking zone (only if we have reference data)
+    if state.current_ref and "braking_zones" in state.current_ref and brake > 0.5:
+        speed_call = speed_at_braking_zone(speed, state.current_ref, sector)
+        if speed_call and speed_call != state.last_brake_callout:
+            # Don't spam - throttle cooldown
+            if now - state.last_coaching_time > 8:
+                state.last_brake_callout = speed_call
+                state.last_coaching_time = now
+                return speed_call
 
     # Throttle coaching
     throttle_call = throttle_coaching(throttle, brake, speed, gear)
@@ -271,11 +440,13 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
 
 
 def main():
-    print("[coach] Zeus SimRace Coach v0.1", flush=True)
+    print("[coach] Zeus SimRace Coach v0.2", flush=True)
     print(f"[coach] Reading from: {STATE_FILE}", flush=True)
 
     state = CoachingState()
     state.personal_best = load_pb()
+    state.pace_data = load_pace_data()
+    print(f"[coach] Pace data loaded: {list(state.pace_data.keys())}", flush=True)
     print(f"[coach] Personal best: {state.personal_best}", flush=True)
 
     last_telemetry = {}
