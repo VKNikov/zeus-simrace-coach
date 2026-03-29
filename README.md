@@ -90,15 +90,28 @@ You'll hear voice coaching in your headset as you drive.
 ## Coaching Features
 
 ### Real-Time Calls
-- Sector delta vs personal best
-- Brake point feedback
-- Throttle application coaching
-- Mistake callouts
-- Consistency scoring
+- **Sector delta vs community reference** — compares your sector times to validated community Pro/Good/Average pace data
+- **Brake point coaching** — per-track braking zones with specific advice for each corner
+- **Throttle application coaching** — early/late throttle, commitment calls
+- **Mistake callouts** — brake/throttle conflicts, early braking
+- **Consistency scoring** — every 3 laps, stdev analysis
+- **Personal best tracking** — per-track, per-car records
+
+### Pace Reference Data
+The coach ships with validated community reference data for:
+
+**AMS2 — Formula V10 Gen2 (F1-era):**
+- Imola 2001, Monza GP, Spa 1993, Silverstone 2001, Barcelona GP, Interlagos
+- Includes your own recorded laps from `Documents/Automobilista 2/records/`
+
+**ACC — GT3 (all major cars):**
+- Spa, Monza, Barcelona, Imola, Brands Hatch, Silverstone GP, Nürburgring GP, Zandvoort, Hungaroring, Paul Ricard, Watkins Glen, COTA, Misano, Donington, Red Bull Ring, Laguna Seca, Zolder, Snetterton, Oulton Park, Kyalami, Mount Panorama, Indianapolis, Nordschleife, Valencia
+- Sector-level pro pace for each track (S1/S2/S3)
+- Per-car offsets (Ferrari 296, McLaren 720S, Porsche 992, etc.)
 
 ### Post-Session Analysis
-- Sector-by-sector breakdown
-- Time loss prioritization
+- Sector-by-sector breakdown vs community reference
+- Time loss prioritization by corner
 - Setup suggestions (via coaching level)
 
 ## Configuration

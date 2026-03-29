@@ -104,37 +104,112 @@ def save_pb(pb):
 
 
 def get_current_ref(state: CoachingState, telemetry: dict) -> Optional[dict]:
-    """Get reference pace data for the current track/car combo."""
+    """Get reference pace data for the current track/car combo.
+    
+    pace_data.json structure:
+      ams2:
+        car: "Formula V10 Gen2"
+        tracks:
+          imola_2001: { track_name, pro_pace, good_pace, avg_pace, braking_zones[], acceleration_zones[] }
+          monza_gp: { ... }
+          spa_1993: { ... }
+          silverstone_2001: { ... }
+          catalunya_gp: { ... }
+          interlagos: { ... (includes stock_cruze_22 with user data) }
+      acc:
+        car: "BMW M4 GT3 2022"
+        tracks:
+          spa: { track_name, pro_pace_s1/s2/s3, pro_pace_lap, good_pace, avg_pace, ... }
+          monza: { ... }
+          ... (24 tracks)
+    """
     track = telemetry.get("current_track", "")
     car = telemetry.get("current_car", "")
+    sim = telemetry.get("sim", "")  # "ams2", "acc", "ac", or similar
 
-    if not track or not car:
+    if not track:
         return None
 
-    # Normalize keys
     track_lower = track.lower()
-    car_lower = car.lower().replace(" ", "_").replace("-", "_")
+    car_lower = car.lower() if car else ""
 
     pace = state.pace_data
 
-    # Try sim-specific lookup
-    for sim_key, sim_data in pace.items():
-        if not isinstance(sim_data, dict):
-            continue
-        for track_key, track_data in sim_data.items():
-            if track_key.lower() in track_lower or track_lower in track_key.lower():
-                cars = track_data.get("cars", {})
-                for car_key, car_data in cars.items():
-                    if car_key.lower() in car_lower or car_lower in car_key.lower():
-                        return {
-                            "track_name": track_key,
-                            "car_name": car_data.get("_name", car_key),
-                            "ref_lap": car_data.get("ref_lap_time_s", 0) * 1000,  # ms
-                            "sectors": car_data.get("sectors", {}),
-                            "braking_zones": car_data.get("braking_zones", {}),
-                            "sim": sim_key
-                        }
-    return None
+    # Determine which sim section to use
+    sim_section = None
+    if sim == "ams2" and "ams2" in pace:
+        sim_section = pace["ams2"]
+    elif sim == "acc" and "acc" in pace:
+        sim_section = pace["acc"]
+    else:
+        # Fallback: search both sections
+        for key in ["ams2", "acc"]:
+            if key in pace:
+                tracks = pace[key].get("tracks", {})
+                for tk, td in tracks.items():
+                    if tk.lower() in track_lower or track_lower in tk.lower():
+                        sim_section = pace[key]
+                        break
+                if sim_section:
+                    break
+
+    if not sim_section:
+        return None
+
+    tracks = sim_section.get("tracks", {})
+
+    # Find matching track
+    matched_track = None
+    for track_key, track_data in tracks.items():
+        if track_key.lower() in track_lower or track_lower in track_key.lower():
+            matched_track = (track_key, track_data)
+            break
+
+    if not matched_track:
+        return None
+
+    track_key, track_data = matched_track
+    ref_car = sim_section.get("car", car or "reference")
+
+    # Build reference dict
+    ref = {
+        "track_key": track_key,
+        "track_name": track_data.get("track_name", track_key),
+        "car_name": ref_car,
+        "sim": "ams2" if sim_section is pace.get("ams2") else "acc",
+    }
+
+    # AMS2 format: pro_pace, good_pace, avg_pace (flat seconds)
+    if "ams2" in pace and sim_section is pace["ams2"]:
+        pro = track_data.get("pro_pace", 0)
+        good = track_data.get("good_pace", 0)
+        avg = track_data.get("avg_pace", 0)
+        ref["pro_pace_ms"] = pro * 1000
+        ref["good_pace_ms"] = good * 1000
+        ref["avg_pace_ms"] = avg * 1000
+        ref["ref_lap"] = pro * 1000  # pro pace as primary reference
+        ref["braking_zones"] = track_data.get("braking_zones", [])
+        ref["acceleration_zones"] = track_data.get("acceleration_zones", [])
+
+        # Special case: Stock Car with user data
+        if "stock_cruze_22" in track_data:
+            sc = track_data["stock_cruze_22"]
+            ref["user_best_lap"] = sc.get("user_best_lap", 0) * 1000
+            ref["community_top"] = sc.get("community_top", 0) * 1000
+
+    # ACC format: pro_pace_s1/s2/s3, pro_pace_lap (seconds)
+    else:
+        ref["pro_pace_s1_ms"] = track_data.get("pro_pace_s1", 0) * 1000
+        ref["pro_pace_s2_ms"] = track_data.get("pro_pace_s2", 0) * 1000
+        ref["pro_pace_s3_ms"] = track_data.get("pro_pace_s3", 0) * 1000
+        ref["pro_pace_lap_ms"] = track_data.get("pro_pace_lap", 0) * 1000
+        ref["good_pace_ms"] = track_data.get("good_pace", 0) * 1000
+        ref["avg_pace_ms"] = track_data.get("avg_pace", 0) * 1000
+        ref["ref_lap"] = track_data.get("pro_pace_lap", 0) * 1000
+        ref["braking_zones"] = track_data.get("braking_zones", [])
+        ref["acceleration_zones"] = track_data.get("acceleration_zones", [])
+
+    return ref
 
 
 def speak(text: str, voice: str = "libritts_r-male", async_: bool = True):
@@ -200,26 +275,32 @@ def brake_coaching(speed: float, brake: float, throttle: float, gear: int,
 
 
 def speed_at_braking_zone(speed: float, current_ref: dict, sector: int) -> Optional[str]:
-    """Compare current speed at a braking zone vs reference, return coaching."""
-    if not current_ref or "braking_zones" not in current_ref:
+    """Compare current speed at a braking zone vs reference, return coaching.
+    
+    Braking zones in pace_data are a list of {zone, severity, tip} objects.
+    Zone names include the turn name. We match against the zone string.
+    """
+    if not current_ref or not current_ref.get("braking_zones"):
         return None
 
-    bz = current_ref.get("braking_zones", {})
-    # Map sector number to braking zone
-    sector_bz_map = {
-        0: ["T1_Descida", "T1", "T3_Laranja"],
-        1: ["T4_Ferradura", "T4", "Juncao"],
-        2: ["T10_Cotovelo", "T10", "T8_T9", "T7"]
-    }
+    bz_list = current_ref["braking_zones"]
+    if not isinstance(bz_list, list):
+        return None
 
-    relevant_bz = sector_bz_map.get(sector, [])
-    for bz_name in relevant_bz:
-        if bz_name in bz:
-            info = bz[bz_name]
-            advice = info.get("_advice", "")
-            # No hard speed reference in pace data yet, just advisory
-            if advice:
-                return f"at {int(speed)} kilometres. {advice}"
+    speed_kmh = int(speed)
+
+    # Match braking zone by severity in the current sector area
+    # Zone names contain turn identifiers — we use severity + tip for coaching
+    for bz in bz_list:
+        severity = bz.get("severity", "")
+        tip = bz.get("tip", "")
+        zone_name = bz.get("zone", "")
+
+        # Hard/very hard braking zones get coaching
+        if severity in ("hard", "very hard") and tip and speed_kmh > 60:
+            # Don't coach every frame — only when speed is relevant
+            return f"{zone_name}. {tip}"
+
     return None
 
 
@@ -242,9 +323,12 @@ def throttle_coaching(throttle: float, brake: float, speed: float, gear: int) ->
 
 def sector_coaching_vs_ref(sector: int, sector_time_ms: int, current_ref: dict,
                            personal_best_ms: int) -> Optional[str]:
-    """Generate sector coaching comparing against reference AND personal best."""
+    """Generate sector coaching comparing against reference AND personal best.
+
+    ACC refs have pro_pace_s1_ms, pro_pace_s2_ms, pro_pace_s3_ms.
+    AMS2 refs have a single pro_pace_ms (no per-sector reference).
+    """
     if not current_ref:
-        # Fallback to PB-based coaching
         if personal_best_ms <= 0:
             return None
         delta = sector_time_ms - personal_best_ms
@@ -255,28 +339,35 @@ def sector_coaching_vs_ref(sector: int, sector_time_ms: int, current_ref: dict,
             return f"{name} {delta_str} vs your best."
         return None
 
-    ref_sectors = current_ref.get("sectors", {})
-    sector_key = f"S{sector + 1}"
-    ref_s = ref_sectors.get(sector_key, 0)
-    if ref_s <= 0:
-        return None
-
-    ref_ms = ref_s * 1000
-    delta_vs_ref = sector_time_ms - ref_ms
-    delta_vs_ref_str = delta_description(delta_vs_ref)
-
     sector_names = {0: "sector one", 1: "sector two", 2: "sector three"}
     name = sector_names.get(sector, f"sector {sector + 1}")
     car = current_ref.get("car_name", "reference")
 
-    if delta_vs_ref > 500:
-        return f"{name} {delta_vs_ref_str} versus {car} pace. Look for more."
-    elif delta_vs_ref > 100:
-        return f"{name} {delta_vs_ref_str} off {car} pace."
-    elif delta_vs_ref < -200:
-        return f"{name} faster than reference pace by {abs(delta_vs_ref_str)}!"
-    elif delta_vs_ref > 0:
-        return f"{name} {delta_vs_ref_str} versus reference."
+    # ACC: per-sector reference
+    if current_ref["sim"] == "acc":
+        ref_s_keys = ["pro_pace_s1_ms", "pro_pace_s2_ms", "pro_pace_s3_ms"]
+        ref_key = ref_s_keys[sector] if sector < 3 else None
+        ref_ms = current_ref.get(ref_key, 0) if ref_key else 0
+
+        if ref_ms > 0:
+            delta_vs_ref = sector_time_ms - ref_ms
+            delta_vs_ref_str = delta_description(delta_vs_ref)
+            if delta_vs_ref > 500:
+                return f"{name} {delta_vs_ref_str} versus {car} pace. Look for more."
+            elif delta_vs_ref > 100:
+                return f"{name} {delta_vs_ref_str} off {car} pace."
+            elif delta_vs_ref < -200:
+                return f"{name} faster than reference pace! Excellent."
+            elif delta_vs_ref > 0:
+                return f"{name} {delta_vs_ref_str} versus reference."
+            return None
+
+    # AMS2: single lap reference, no per-sector breakdown
+    # Fall back to PB comparison
+    if personal_best_ms > 0:
+        delta = sector_time_ms - personal_best_ms
+        if delta > 200:
+            return f"{name} {delta_description(delta)} vs your PB."
     return None
 
 
@@ -377,11 +468,14 @@ def generate_coaching(state: CoachingState, telemetry: dict) -> Optional[str]:
         ref = get_current_ref(state, telemetry)
         if ref and ref != state.current_ref:
             state.current_ref = ref
-            print(f"[coach] Reference pace loaded: {ref['car_name']} @ {ref['track_name']}", flush=True)
+            track_n = ref.get("track_name", "?")
+            car_n = ref.get("car_name", "?")
+            ref_ms = ref.get("ref_lap", 0)
+            print(f"[coach] Reference pace loaded: {car_n} @ {track_n}", flush=True)
             # Announce reference pace at session start
-            if ref.get("ref_lap"):
-                ref_s = ref["ref_lap"] / 1000
-                speak(f"Reference pace loaded. {ref['car_name']} target lap: {ref_s:.1f} seconds.", async_=False)
+            if ref_ms > 0:
+                ref_s = ref_ms / 1000
+                speak(f"Reference pace loaded. {car_n} at {track_n}. Target: {ref_s:.1f} seconds.", async_=False)
 
     # Lap completion detection
     if lap > state.lap_count and lap_time_ms > 1000:

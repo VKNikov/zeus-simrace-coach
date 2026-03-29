@@ -1,145 +1,654 @@
 {
-  "_format": "zeus-simrace-coach pace reference v1",
-  "_notes": "Community reference sector times + braking points. Sources: LapLegends leaderboards, TTotW videos (YouTube), Scribd AMS2 cheat sheet. Sectors are S1/S2/S3 split times in seconds. Braking points are named corners with reference advice.",
-  "_last_updated": "2026-03-29",
+  "_meta": {
+    "version": "1.0",
+    "last_updated": "2026-03-29",
+    "notes": "Community reference pace data compiled from leaderboards, TrackTitan, CoachDave Academy, safe-track.nl, seniorsimracer.co.uk, and community videos. Times are hotlap reference with optimal conditions. Delta targets: Pro pace = top 5%, Good pace = top 15-20%, Average = median."
+  },
 
   "ams2": {
-    "interlagos": {
-      "_track": "Autodromo Jose Carlos Pace (Interlagos), 4.309km",
-      "_ Cars": [
-        "Stock Car Cruze (2022/2024)",
-        "F1 Gen",
-        "Stock Car 2021"
-      ],
-      "cars": {
-        "stock_cruze": {
-          "_name": "Stock Car Cruze (2022/2024)",
-          "ref_lap_time_s": 97.634,
-          "_source": "TTotW YouTube 01:39.634 (2025-05, W#1 time trial)",
-          "_community_best": "97.1s (LapLegends)",
-          "sectors": {
-            "S1": 24.1,
-            "S2": 50.5,
-            "S3": 22.9
-          },
-          "_sector_notes": "S1:Start->T1; S2:T1->T4(Descida do Lago); S3:T4->Finish",
-          "braking_zones": {
-            "T1_Descida": {
-              "_name": "T1 Descida (big braking, flat-out entry)",
-              "_desc": "Heavy braking from ~280km/h. Classic Interlagos T1 - descend and turn, trail brake.",
-              "_advice": "Brake 100m boards, rotate on throttle through the hill"
-            },
-            "T3_Laranja": {
-              "T3": {
-                "_name": "T3 Laranjinha (Esses do Lago)",
-                "_desc": "Quick left-right through the lake section. Heavy braking required.",
-                "_advice": "Brake before the first apex, use kerb on exit"
-              }
-            },
-            "T4_Ferradura": {
-              "_name": "T4 Ferradura (the Bunch of Horseshoes)",
-              "_desc": "Heavy braking into the hairpin. The track drops downhill here.",
-              "_advice": "Heavy brake 100m boards, swing wide entry"
-            },
-            "Juncao": {
-              "_name": "Juncao (curva da uniao)",
-              "_desc": "Medium-speed right-hand curve joining the two sections.",
-              "_advice": "Can be taken flat in Stock Car with good exit for the back straight"
-            },
-            "T10_Cotovelo": {
-              "_name": "T10 Cotovelo (the Elbow)",
-              "_desc": "Last sector chicane before the main straight.",
-              "_advice": "Late apex, early throttle"
-            }
-          },
-          "pace_notes": [
-            "Stock Car Cruze is stable but heavy under braking - understeer tendency",
-            "Corolla is nimbler but less composed",
-            "Best exit: Juncao to power up hill to T1"
-          ]
-        },
-        "f1_gen": {
-          "_name": "F1 Gen (current gen F1 cars)",
-          "ref_lap_time_s": 68.0,
-          "_source": "Community reference (Steam discussions)",
-          "sectors": {
-            "S1": 18.5,
-            "S2": 28.0,
-            "S3": 21.5
-          },
-          "braking_zones": {
-            "T1": {
-              "_name": "T1 Descida",
-              "_desc": "Heavy braking from ~320km/h",
-              "_advice": "Trail brake deep into T1, flat-out through the hill"
-            },
-            "T4": {
-              "_name": "T4 Ferradura",
-              "_desc": "Heavy braking hairpin",
-              "_advice": "Late apex essential"
-            }
-          }
-        }
-      }
+    "description": "Automobilista 2 — Formula V10 Gen2 (approx. 2000 F1 season, Williams FW23-based design)",
+    "car": "Formula V10 Gen2",
+    "class": "F1-era open wheel",
+    "reference_note": "AMS2 physics tend to run ~3-6 seconds faster than real 2000 F1 times due to TC/simulation differences",
+    "car_specific_adjustments": {
+      "Ferrari F2004": "Use Formula V10 Gen2 data directly; car is close approximation",
+      "Generic F1 1998-2004 era": "Use Formula V10 Gen2 data"
     },
-
-    "curitiba_oval": {
-      "_track": "Autodromo Internacional de Curitiba (Exterior/Anel Externo)",
-      "cars": {
-        "stock_cruze": {
-          "_name": "Stock Car Cruze",
-          "_notes": "See RPM Esports video: key is wide line through Laranja, close early for curva da Vitoria"
-        }
+    "tracks": {
+      "imola_2001": {
+        "track_name": "Imola (2001 layout)",
+        "world_record_s1": 20.5,
+        "world_record_s2": 31.0,
+        "world_record_s3": 28.5,
+        "world_record_lap": 80.5,
+        "pro_pace": 81.5,
+        "good_pace": 83.0,
+        "avg_pace": 86.0,
+        "braking_zones": [
+          { "zone": "T1 (Rivazza)", "severity": "medium", "tip": "Late apex, big throttle from exit" },
+          { "zone": "T2 (Tosa)", "severity": "hard", "tip": "Heavy brake, tightens line" },
+          { "zone": "Variante Alta", "severity": "medium-hard", "tip": "Flat in GT car, trail-brake deep" },
+          { "zone": "T4 (Acqua Minerale)", "severity": "hard", "tip": "Hard braking, car rotation on trail-brake" },
+          { "zone": "Tamburello", "severity": "medium", "tip": "Fast sweeper, commitment matters" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T2 exit (Tosa)", "tip": "Hard on throttle early, TC saves you" },
+          { "zone": "Rivazza exit", "tip": "Short, but commitment to throttle matters" },
+          { "zone": "Variante Alta exit", "tip": "Full throttle, slight lift" }
+        ]
+      },
+      "monza_gp": {
+        "track_name": "Monza (Grand Prix layout)",
+        "world_record_s1": 31.0,
+        "world_record_s2": 25.5,
+        "world_record_s3": 24.5,
+        "world_record_lap": 81.5,
+        "pro_pace": 82.5,
+        "good_pace": 84.0,
+        "avg_pace": 87.0,
+        "braking_zones": [
+          { "zone": "T1 (Rettifilo)", "severity": "very hard", "tip": "Heavy braking from 340+ km/h, late apex" },
+          { "zone": "T2 (Roggia)", "severity": "medium", "tip": "Medium brake, inside line" },
+          { "zone": "T3 (Lesmo 1)", "severity": "hard", "tip": "Heavy brake from medium speed" },
+          { "zone": "T4 (Lesmo 2)", "severity": "medium-hard", "tip": "Quick brake, smooth rotation" },
+          { "zone": "T5 (Ascari)", "severity": "medium", "tip": "Can be taken faster than you think" },
+          { "zone": "T6 (Parabolica)", "severity": "hard", "tip": "Heavy initial brake, trail to apex" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Rettifilo exit", "tip": "Massive slipstream zone, full throttle" },
+          { "zone": "Lesmo exits", "tip": "Fast, but traction is key" },
+          { "zone": "Parabolica exit to start/finish", "tip": "Full throttle onto main straight" }
+        ]
+      },
+      "spa_1993": {
+        "track_name": "Spa-Francorchamps (1993 layout)",
+        "world_record_s1": 55.0,
+        "world_record_s2": 28.0,
+        "world_record_s3": 20.5,
+        "world_record_lap": 104.0,
+        "pro_pace": 105.5,
+        "good_pace": 107.0,
+        "avg_pace": 110.0,
+        "braking_zones": [
+          { "zone": "T1 (La Source)", "severity": "very hard", "tip": "Hard braking from top speed, apex is key" },
+          { "zone": "T2 (Eau Rouge)", "severity": "medium", "tip": "Fast sweeper, compresses under braking" },
+          { "zone": "T3 (Raidillon)", "severity": "medium", "tip": "Almost flat in F-V10 Gen2, commitment is everything" },
+          { "zone": "T4 (Blanchimont)", "severity": "medium", "tip": "Fast kink, compresses the car" },
+          { "zone": "T5 (Bus Stop)", "severity": "hard", "tip": "Heavy braking from high speed" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Eau Rouge exit", "tip": "Throttle carefully — TC on but still kicks" },
+          { "zone": "Raidillon to Blanchimont", "tip": "Full throttle compression" },
+          { "zone": "Bus Stop to Kemmel", "tip": "Full throttle onto back straight" }
+        ]
+      },
+      "silverstone_2001": {
+        "track_name": "Silverstone (2001 layout)",
+        "world_record_s1": 45.0,
+        "world_record_s2": 42.0,
+        "world_record_s3": 34.0,
+        "world_record_lap": 121.5,
+        "pro_pace": 123.0,
+        "good_pace": 125.0,
+        "avg_pace": 128.0,
+        "braking_zones": [
+          { "zone": "T1 (Abbey)", "severity": "hard", "tip": "Heavy brake, late apex" },
+          { "zone": "T3 (Club)", "severity": "medium", "tip": "Quick transition, trail-brake" },
+          { "zone": "T5 (Hangar)", "severity": "hard", "tip": "Heavy braking from high speed" },
+          { "zone": "T6 (Luffield)", "severity": "medium-hard", "tip": "Tightens under braking" },
+          { "zone": "T8 (Brooklands)", "severity": "hard", "tip": "Deep braking, commitment" },
+          { "zone": "T9 (Lowe's)", "severity": "medium", "tip": "Quick chicane, smooth inputs" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Club to Hangar straight", "tip": "Full throttle, fast section" },
+          { "zone": "Brooklands exit to Wellington Straight", "tip": "Full throttle onto longest straight" }
+        ]
+      },
+      "catalunya_gp": {
+        "track_name": "Circuit de Barcelona-Catalunya (GP layout)",
+        "world_record_s1": 48.0,
+        "world_record_s2": 40.0,
+        "world_record_s3": 33.0,
+        "world_record_lap": 121.5,
+        "pro_pace": 123.0,
+        "good_pace": 125.0,
+        "avg_pace": 128.0,
+        "braking_zones": [
+          { "zone": "T1 (La Caixa)", "severity": "hard", "tip": "Heavy braking from 300+ km/h, late apex" },
+          { "zone": "T4 (Seco)", "severity": "hard", "tip": "Heavy brake, tightens entry" },
+          { "zone": "T5 (Rabo de Gato)", "severity": "medium", "tip": "Medium brake, tricky entry" },
+          { "zone": "T10 (New Holland)", "severity": "hard", "tip": "Heavy braking zone" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit to T2", "tip": "Full throttle after apex" },
+          { "zone": "T4 exit", "tip": "Fast section follows" }
+        ]
+      },
+      "interlagos": {
+        "track_name": "Autodromo Jose Carlos Pace (Interlagos)",
+        "car_notes": "Stock Car Cruze 2022 reference times found in user record file",
+        "stock_cruze_22": {
+          "user_best_lap": 94.283,
+          "reference_laps": [94.283, 90.825, 91.351, 91.507, 91.907, 95.291, 96.856, 98.351],
+          "community_top": 99.6,
+          "community_good": 100.0,
+          "community_avg": 103.0
+        },
+        "braking_zones": [
+          { "zone": "T1 (S do Lago)", "severity": "very hard", "tip": "Heavy brake from ~280 km/h, tight line" },
+          { "zone": "T3 (Curvinha)", "severity": "medium", "tip": "Quick transition" },
+          { "zone": "T4 (Ferradura)", "severity": "hard", "tip": "Heavy brake, smooth rotation" },
+          { "zone": "T5 (Mergulho)", "severity": "medium", "tip": "Fast sweeper, commitment" },
+          { "zone": "T6 (Des. do Lago)", "severity": "hard", "tip": "Heavy braking from speed" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit (S do Lago)", "tip": "Uphill acceleration, TC helps" },
+          { "zone": "Ferradura exit", "tip": "Fast exit sets up main straight" },
+          { "zone": "Juncao", "tip": "Fast right-hander, full throttle exit" }
+        ]
       }
     }
   },
 
   "acc": {
-    "monza": {
-      "_track": "Autodromo Nazionale Monza, 5.793km",
-      "cars": {
-        "bmw_m4_gt3": {
-          "_name": "BMW M4 GT3",
-          "ref_lap_time_s": 101.5,
-          "_source": "ACC community",
-          "sectors": {
-            "S1": 33.0,
-            "S2": 38.0,
-            "S3": 30.5
-          },
-          "braking_zones": {
-            "T1": {
-              "_name": "T1 Rettifilo",
-              "_desc": "Full throttle entry, heavy braking",
-              "_advice": "Late braking 150m board"
-            },
-            "T2": {
-              "_name": "T2 Variante della Roggia",
-              "_desc": "Chicane, sequential left-right",
-              "_advice": "Trail brake on first apex, early throttle second"
-            },
-            "T4": {
-              "_name": "T4 Lesmo 1",
-              "_desc": "Fast right-hand sweeper",
-              "_advice": "Can be taken almost flat"
-            },
-            "T5": {
-              "_name": "T5 Lesmo 2",
-              "_desc": "Medium speed right",
-              "_advice": "Brake 100m, rotate with throttle"
-            },
-            "T7": {
-              "_name": "T7 Tamburello",
-              "_desc": "Fast chicane left-right",
-              "_advice": "Trail brake, sequential"
-            },
-            "T8_T9": {
-              "_name": "T8/T9 Chicane Ascari",
-              "_desc": "Double chicane",
-              "_advice": "Use kerbs, sequential"
-            }
-          }
-        }
+    "description": "Assetto Corsa Competizione — GT3 class (all cars broadly comparable, BMW M4 as baseline)",
+    "car": "BMW M4 GT3 2022",
+    "class": "GT3",
+    "reference_note": "ACC GT3 times are consistent across cars within ~1 second. Use BMW M4 data as baseline; per-car offsets listed below.",
+    "car_offsets_from_bmw_m4": {
+      "Ferrari 296 GT3": 0.0,
+      "McLaren 720S GT3 EVO": 0.0,
+      "Lamborghini Huracan GT3 Evo 2": 0.0,
+      "Porsche 911 GT3 R (992)": -0.5,
+      "Ferrari 488 GT3": 0.0,
+      "Audi R8 LMS Evo II": 0.0,
+      "Aston Martin V8 Vantage GT3": 0.0,
+      "Ford Mustang GT3": 0.0,
+      "Mercedes AMG GT3 EVO": 0.0,
+      "Honda NSX GT3 Evo": 0.0,
+      "Nissan GT-R Nismo GT3": 0.0,
+      "BMW M4 GT3": 0.0
+    },
+    "tracks": {
+      "spa": {
+        "track_name": "Circuit de Spa-Francorchamps",
+        "pro_pace_s1": 41.0,
+        "pro_pace_s2": 62.0,
+        "pro_pace_s3": 37.0,
+        "pro_pace_lap": 141.0,
+        "good_pace": 144.0,
+        "avg_pace": 148.0,
+        "mustang_gt3_top": 144.5,
+        "mustang_fast_driver": 146.1,
+        "mustang_avg_driver": 149.2,
+        "braking_zones": [
+          { "zone": "T1 (La Source)", "severity": "very hard", "tip": "Brake at 100m board, tight inside line" },
+          { "zone": "T3 (Eau Rouge)", "severity": "medium", "tip": "Feet-dry, compresses the car" },
+          { "zone": "T4 (Raidillon)", "severity": "medium", "tip": "Almost flat, lift if rear steps out" },
+          { "zone": "T5 (Blanchimont)", "severity": "medium", "tip": "Fast kink, stay committed" },
+          { "zone": "T6 (Bus Stop)", "severity": "hard", "tip": "Heavy brake, late apex crucial" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Eau Rouge exit", "tip": "Smooth throttle, no wheelspin" },
+          { "zone": "Raidillon to Blanchimont", "tip": "Full throttle, stay centered" },
+          { "zone": "Bus Stop exit to Pouwater", "tip": "Full throttle onto kemmel straight" }
+        ],
+        "tricky_sections": [
+          { "section": "Eau Rouge - Raidillon complex", "difficulty": "high", "tip": "Entry speed and commitment determine exit. Brake early if unsure." }
+        ]
+      },
+      "monza": {
+        "track_name": "Autodromo Nazionale di Monza",
+        "pro_pace_s1": 35.0,
+        "pro_pace_s2": 38.5,
+        "pro_pace_s3": 35.5,
+        "pro_pace_lap": 109.5,
+        "good_pace": 111.0,
+        "avg_pace": 114.0,
+        "mustang_gt3_top": 107.4,
+        "braking_zones": [
+          { "zone": "T1 (Rettifilo)", "severity": "very hard", "tip": "Brake at 150m board, tight line, late apex" },
+          { "zone": "T2 (Roggia)", "severity": "medium", "tip": "Brake 75m board, inside line" },
+          { "zone": "T3 (Lesmo 1)", "severity": "hard", "tip": "Brake 100m board, trail-brake" },
+          { "zone": "T4 (Lesmo 2)", "severity": "medium-hard", "tip": "Quick, smooth" },
+          { "zone": "T5 (Ascari)", "severity": "medium", "tip": "Can take faster than expected" },
+          { "zone": "T6 (Parabolica)", "severity": "hard", "tip": "Brake at 100m, trail to apex, slow in" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Rettifilo straight", "tip": "Full throttle from exit" },
+          { "zone": "Parabolica to start/finish", "tip": "Full throttle onto main straight" }
+        ]
+      },
+      "barcelona": {
+        "track_name": "Circuit de Barcelona-Catalunya",
+        "pro_pace_s1": 29.0,
+        "pro_pace_s2": 40.0,
+        "pro_pace_s3": 34.5,
+        "pro_pace_lap": 144.0,
+        "good_pace": 146.5,
+        "avg_pace": 151.0,
+        "ferrari_488_top": 145.8,
+        "ferrari_488_fast": 146.9,
+        "ferrari_488_avg": 151.4,
+        "braking_zones": [
+          { "zone": "T1 (La Caixa)", "severity": "very hard", "tip": "Heavy brake from 300 km/h, late apex crucial" },
+          { "zone": "T4 (Seco)", "severity": "hard", "tip": "Heavy brake, tightens entry" },
+          { "zone": "T5 (Rabo de Gato)", "severity": "medium", "tip": "Medium brake entry, tricky" },
+          { "zone": "T10 (New Holland)", "severity": "hard", "tip": "Heavy braking zone" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1-T2", "tip": "Full throttle exit, fast kink follows" }
+        ]
+      },
+      "imola": {
+        "track_name": "Autodromo Enzo e Dino Ferrari (Imola)",
+        "pro_pace_s1": 21.5,
+        "pro_pace_s2": 32.0,
+        "pro_pace_s3": 46.5,
+        "pro_pace_lap": 140.5,
+        "good_pace": 142.5,
+        "avg_pace": 147.0,
+        "ford_mustang_top": 139.9,
+        "ford_mustang_fast": 140.4,
+        "braking_zones": [
+          { "zone": "T1 (Rivazza)", "severity": "hard", "tip": "Heavy brake, late apex" },
+          { "zone": "T2 (Tosa)", "severity": "very hard", "tip": "Heavy braking, tightens entry" },
+          { "zone": "Variante Alta", "severity": "medium", "tip": "Trail-brake through, can be aggressive" },
+          { "zone": "T4 (Acqua Minerale)", "severity": "hard", "tip": "Heavy brake, rotation on trail" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Tosa exit", "tip": "Early throttle, TC saves you" },
+          { "zone": "Rivazza exit", "tip": "Full throttle" }
+        ]
+      },
+      "brands_hatch": {
+        "track_name": "Brands Hatch Circuit (Indy layout)",
+        "pro_pace_s1": 26.5,
+        "pro_pace_s2": 21.2,
+        "pro_pace_s3": 34.2,
+        "pro_pace_lap": 122.0,
+        "good_pace": 124.0,
+        "avg_pace": 127.0,
+        "mustang_gt3_top": 122.1,
+        "braking_zones": [
+          { "zone": "T1 (Paddock Bend)", "severity": "medium", "tip": "Lift and coast, or light brake" },
+          { "zone": "T2 (Druids)", "severity": "very hard", "tip": "Heavy brake, late apex is key" },
+          { "zone": "T3 (Shepherds)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T4 (Clearways)", "severity": "hard", "tip": "Heavy brake, commitment" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Druids exit", "tip": "Full throttle, careful on TC" },
+          { "zone": "Clearways exit to start/finish", "tip": "Full throttle onto main straight" }
+        ]
+      },
+      "silverstone": {
+        "track_name": "Silverstone Circuit (National layout)",
+        "pro_pace_s1": 26.0,
+        "pro_pace_s2": 49.0,
+        "pro_pace_s3": 33.5,
+        "pro_pace_lap": 109.0,
+        "good_pace": 111.0,
+        "avg_pace": 115.0,
+        "braking_zones": [
+          { "zone": "T1 (Abbey)", "severity": "hard", "tip": "Heavy brake, late apex" },
+          { "zone": "T3 (Village)", "severity": "medium", "tip": "Medium brake, fast" },
+          { "zone": "T5 (The Loop)", "severity": "hard", "tip": "Heavy brake, commitment" },
+          { "zone": "T6 (Luffield)", "severity": "medium-hard", "tip": "Brake and rotate" },
+          { "zone": "T8 (Brooklands)", "severity": "hard", "tip": "Deep braking" },
+          { "zone": "T9 (Club)", "severity": "medium", "tip": "Quick chicane, trail-brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Abbey straight", "tip": "Full throttle" },
+          { "zone": "Brooklands exit to Wellington", "tip": "Full throttle" }
+        ]
+      },
+      "nurburgring_gp": {
+        "track_name": "Nürburgring (GP/Stadium layout)",
+        "pro_pace_s1": 55.5,
+        "pro_pace_s2": 43.5,
+        "pro_pace_s3": 17.0,
+        "pro_pace_lap": 116.5,
+        "good_pace": 118.5,
+        "avg_pace": 122.0,
+        "braking_zones": [
+          { "zone": "T1 (Flugplatz)", "severity": "hard", "tip": "Heavy brake, tricky camber" },
+          { "zone": "T2 (Dunlop Loop)", "severity": "medium", "tip": "Fast kink" },
+          { "zone": "T3 (Arena)", "severity": "hard", "tip": "Heavy braking zone" },
+          { "zone": "T4 (Parabolica)", "severity": "hard", "tip": "Heavy brake, tightens" },
+          { "zone": "T5 (Schumacher S)", "severity": "medium", "tip": "Quick chicane" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Flugplatz straight", "tip": "Full throttle" },
+          { "zone": "Schumacher exit", "tip": "Full throttle" }
+        ]
+      },
+      "zandvoort": {
+        "track_name": "Circuit Zandvoort",
+        "pro_pace_s1": 31.5,
+        "pro_pace_s2": 33.0,
+        "pro_pace_s3": 32.0,
+        "pro_pace_lap": 97.0,
+        "good_pace": 99.0,
+        "avg_pace": 102.0,
+        "braking_zones": [
+          { "zone": "T1 (De Visser)", "severity": "hard", "tip": "Heavy brake, tight entry" },
+          { "zone": "T4 (Scheivlak)", "severity": "medium", "tip": "Fast sweeper" },
+          { "zone": "T7 (Gerono Triple)", "severity": "hard", "tip": "Heavy brake, commitment" },
+          { "zone": "T11 (Hugenholtz Bocht)", "severity": "hard", "tip": "Heavy brake, late apex" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit", "tip": "Full throttle onto back straight" },
+          { "zone": "T4 exit to T7", "tip": "Fast section, full throttle" },
+          { "zone": "Hugenholtz exit", "tip": "Full throttle to finish" }
+        ]
+      },
+      "hungaroring": {
+        "track_name": "Hungaroring",
+        "pro_pace_s1": 37.0,
+        "pro_pace_s2": 37.5,
+        "pro_pace_s3": 29.0,
+        "pro_pace_lap": 104.0,
+        "good_pace": 106.0,
+        "avg_pace": 110.0,
+        "braking_zones": [
+          { "zone": "T1", "severity": "medium", "tip": "Lift, tightens entry" },
+          { "zone": "T2 (Upside Down)", "severity": "hard", "tip": "Heavy brake, tight line" },
+          { "zone": "T11 (Nagy kanyar)", "severity": "hard", "tip": "Heavy brake, apex is key" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit", "tip": "Full throttle" },
+          { "zone": "T2 exit", "tip": "Fast right-hander follows" }
+        ]
+      },
+      "paul_ricard": {
+        "track_name": "Circuit de Paul Ricard",
+        "pro_pace_s1": 32.0,
+        "pro_pace_s2": 31.0,
+        "pro_pace_s3": 52.0,
+        "pro_pace_lap": 115.5,
+        "good_pace": 118.0,
+        "avg_pace": 122.0,
+        "braking_zones": [
+          { "zone": "T1 (Star Drink)", "severity": "hard", "tip": "Heavy brake from high speed" },
+          { "zone": "T2 (Signes)", "severity": "very hard", "tip": "Massive heavy brake, late apex" },
+          { "zone": "T3 (Beausset)", "severity": "medium", "tip": "Quick transition" },
+          { "zone": "T5 (Courbe de la Sainte)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T12 (Chateau)", "severity": "hard", "tip": "Heavy braking zone" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Star Drink exit", "tip": "Full throttle" },
+          { "zone": "Signes exit to Le Beale", "tip": "Long full throttle section" }
+        ]
+      },
+      "watkins_glen": {
+        "track_name": "Watkins Glen International",
+        "pro_pace_s1": 29.5,
+        "pro_pace_s2": 34.5,
+        "pro_pace_s3": 41.5,
+        "pro_pace_lap": 106.0,
+        "good_pace": 108.0,
+        "avg_pace": 112.0,
+        "mustang_gt3_top": 141.9,
+        "mustang_fast_driver": 143.1,
+        "mustang_avg_driver": 145.2,
+        "braking_zones": [
+          { "zone": "T1 (The Bus Stop)", "severity": "very hard", "tip": "Heavy braking from 280+ km/h, late apex" },
+          { "zone": "T5 (The Boot)", "severity": "hard", "tip": "Heavy brake, commitment" },
+          { "zone": "T6 (The Finger)", "severity": "medium", "tip": "Quick, smooth inputs" },
+          { "zone": "T7 (The Keyhole)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T10 (Chopin)", "severity": "medium", "tip": "Fast right-hander" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Boot exit", "tip": "Full throttle" },
+          { "zone": "Keyhole exit", "tip": "Full throttle to the Inner loop" }
+        ]
+      },
+      "cota": {
+        "track_name": "Circuit of The Americas (COTA)",
+        "pro_pace_s1": 27.0,
+        "pro_pace_s2": 50.0,
+        "pro_pace_s3": 51.5,
+        "pro_pace_lap": 129.0,
+        "good_pace": 131.0,
+        "avg_pace": 136.0,
+        "braking_zones": [
+          { "zone": "T1 (Accelerate)", "severity": "hard", "tip": "Heavy brake, late apex" },
+          { "zone": "T2 (Hairpin)", "severity": "very hard", "tip": "Low gear, heavy brake" },
+          { "zone": "T3 (S)", "severity": "medium", "tip": "Quick transition" },
+          { "zone": "T11 (Turn 11)", "severity": "hard", "tip": "Heavy braking zone" },
+          { "zone": "T12 (Turn 12)", "severity": "medium", "tip": "Medium brake" },
+          { "zone": "T19 (Final)", "severity": "hard", "tip": "Heavy brake into hairpin" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit", "tip": "Full throttle up the hill" },
+          { "zone": "T2 exit", "tip": "Full throttle" }
+        ]
+      },
+      "misano": {
+        "track_name": "Misano World Circuit Marco Simoncelli",
+        "pro_pace_s1": 24.0,
+        "pro_pace_s2": 38.0,
+        "pro_pace_s3": 33.5,
+        "pro_pace_lap": 96.0,
+        "good_pace": 98.0,
+        "avg_pace": 102.0,
+        "braking_zones": [
+          { "zone": "T1 (Rivazza)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T4 (Curvone)", "severity": "medium", "tip": "Fast sweeper, medium brake" },
+          { "zone": "T8 (Aqua Minerale)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T16 (Trare)", "severity": "hard", "tip": "Late braking" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit", "tip": "Full throttle" },
+          { "zone": "Curvone exit", "tip": "Full throttle onto main straight" }
+        ]
+      },
+      "donington": {
+        "track_name": "Donington Park (Grand Prix layout)",
+        "pro_pace_s1": 20.5,
+        "pro_pace_s2": 34.5,
+        "pro_pace_s3": 33.5,
+        "pro_pace_lap": 89.0,
+        "good_pace": 91.0,
+        "avg_pace": 95.0,
+        "braking_zones": [
+          { "zone": "T1 (Redgate)", "severity": "hard", "tip": "Heavy brake, tightens" },
+          { "zone": "T3 (Melbourne Hairpin)", "severity": "hard", "tip": "Heavy brake, tight" },
+          { "zone": "T4 (Stirling)", "severity": "medium", "tip": "Quick" },
+          { "zone": "T5 (Old Hairpin)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T7 (Craner Curves)", "severity": "medium", "tip": "Fast, commitment" },
+          { "zone": "T8 (Thornford)", "severity": "hard", "tip": "Heavy brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Redgate exit", "tip": "Full throttle" },
+          { "zone": "Stirling exit to Old Hairpin", "tip": "Full throttle" },
+          { "zone": "Craner Curves exit", "tip": "Full throttle" }
+        ]
+      },
+      "red_bull_ring": {
+        "track_name": "Red Bull Ring",
+        "pro_pace_s1": 22.5,
+        "pro_pace_s2": 39.5,
+        "pro_pace_s3": 27.5,
+        "pro_pace_lap": 90.0,
+        "good_pace": 92.0,
+        "avg_pace": 95.0,
+        "braking_zones": [
+          { "zone": "T1 (Remus)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T3 (Hinten)", "severity": "medium", "tip": "Quick transition" },
+          { "zone": "T4 (Wammerl)", "severity": "hard", "tip": "Heavy brake, tightens" },
+          { "zone": "T6 (Schloss)", "severity": "medium", "tip": "Fast right-hander" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Remus exit", "tip": "Full throttle" },
+          { "zone": "Wammerl exit to Schloss", "tip": "Full throttle" }
+        ]
+      },
+      "laguna_seca": {
+        "track_name": "WeatherTech Raceway Laguna Seca",
+        "pro_pace_s1": 22.0,
+        "pro_pace_s2": 29.0,
+        "pro_pace_s3": 33.0,
+        "pro_pace_lap": 84.0,
+        "good_pace": 86.0,
+        "avg_pace": 89.0,
+        "braking_zones": [
+          { "zone": "T1 (Andretti)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T2 (RH LR)", "severity": "medium", "tip": "Quick" },
+          { "zone": "T3 (Spalmer)", "severity": "medium", "tip": "Fast sweeper" },
+          { "zone": "T4 (Corkscrew entry)", "severity": "very hard", "tip": "Massive brake, drop into the corkscrew" },
+          { "zone": "T5 (Corkscrew peak)", "severity": "medium", "tip": "Commitment through the crest" },
+          { "zone": "T6 (Corkscrew exit)", "severity": "medium", "tip": "Smooth throttle" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Andretti exit", "tip": "Full throttle" },
+          { "zone": "Corkscrew exit", "tip": "Full throttle to flag" }
+        ]
+      },
+      "zolder": {
+        "track_name": "Circuit Zolder",
+        "pro_pace_s1": 30.5,
+        "pro_pace_s2": 29.5,
+        "pro_pace_s3": 30.0,
+        "pro_pace_lap": 90.5,
+        "good_pace": 92.5,
+        "avg_pace": 95.0,
+        "braking_zones": [
+          { "zone": "T1 (Hosting)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T3 (Omloop)", "severity": "medium", "tip": "Fast, commitment" },
+          { "zone": "T5 (Les Combes)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T7 (CK)", "severity": "medium", "tip": "Quick" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Omloop exit", "tip": "Full throttle" },
+          { "zone": "Les Combes exit", "tip": "Full throttle" }
+        ]
+      },
+      "snetterton": {
+        "track_name": "Snetterton Motor Racing Circuit (300 layout)",
+        "pro_pace_s1": 34.0,
+        "pro_pace_s2": 38.5,
+        "pro_pace_s3": 35.5,
+        "pro_pace_lap": 108.5,
+        "good_pace": 110.5,
+        "avg_pace": 114.0,
+        "braking_zones": [
+          { "zone": "T1 (Riches)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T3 (Mosse)", "severity": "medium", "tip": "Quick" },
+          { "zone": "T6 (Nelson)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T7 (Brundle)", "severity": "medium", "tip": "Quick chicane" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Riches exit", "tip": "Full throttle" },
+          { "zone": "Nelson exit", "tip": "Full throttle to Bomb Box" }
+        ]
+      },
+      "oulton_park": {
+        "track_name": "Oulton Park Circuit (International layout)",
+        "pro_pace_s1": 23.0,
+        "pro_pace_s2": 46.5,
+        "pro_pace_s3": 25.5,
+        "pro_pace_lap": 95.5,
+        "good_pace": 97.5,
+        "avg_pace": 101.0,
+        "braking_zones": [
+          { "zone": "T1 (Old Toll)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T2 (Druids)", "severity": "very hard", "tip": "Hairpin, low gear" },
+          { "zone": "T4 (Cascades)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T5 (Shell Oils)", "severity": "hard", "tip": "Heavy brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Druids exit", "tip": "Full throttle" },
+          { "zone": "Cascades exit", "tip": "Full throttle" }
+        ]
+      },
+      "kyalami": {
+        "track_name": "Kyalami Grand Prix Circuit",
+        "pro_pace_s1": 31.5,
+        "pro_pace_s2": 40.5,
+        "pro_pace_s3": 30.5,
+        "pro_pace_lap": 103.0,
+        "good_pace": 105.0,
+        "avg_pace": 108.0,
+        "braking_zones": [
+          { "zone": "T1 (Ing and Out)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T4 (Cheetah)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T6 (Leeuw)", "severity": "medium", "tip": "Fast sweeper" },
+          { "zone": "T7 (Pit Straight Chicane)", "severity": "hard", "tip": "Heavy brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Cheetah exit", "tip": "Full throttle" },
+          { "zone": "Leeuwkopp exit", "tip": "Full throttle" }
+        ]
+      },
+      "mount_panorama": {
+        "track_name": "Mount Panorama Circuit",
+        "pro_pace_s1": 39.0,
+        "pro_pace_s2": 58.0,
+        "pro_pace_s3": 27.0,
+        "pro_pace_lap": 124.5,
+        "good_pace": 127.0,
+        "avg_pace": 132.0,
+        "braking_zones": [
+          { "zone": "T1 (The Chase)", "severity": "hard", "tip": "Heavy brake from 280+ km/h" },
+          { "zone": "T3 (The Dip)", "severity": "hard", "tip": "Brake at the dip" },
+          { "zone": "T4 (Murrays Corner)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T5 (The Esses)", "severity": "medium", "tip": "Fast" },
+          { "zone": "T9 (The Mountain)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T11 (The Hairpin)", "severity": "very hard", "tip": "Low gear, heavy brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Chase exit", "tip": "Full throttle" },
+          { "zone": "The Dip exit", "tip": "Full throttle" },
+          { "zone": "Mountain exit", "tip": "Full throttle to flag" }
+        ]
+      },
+      "indianapolis": {
+        "track_name": "Indianapolis Motor Speedway (Grand Prix layout)",
+        "pro_pace_s1": 37.5,
+        "pro_pace_s2": 32.5,
+        "pro_pace_s3": 27.5,
+        "pro_pace_lap": 98.0,
+        "good_pace": 100.0,
+        "avg_pace": 103.0,
+        "braking_zones": [
+          { "zone": "T1 (Heavy braking zone 1)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T3 (Hairpin)", "severity": "very hard", "tip": "Low gear, very heavy" },
+          { "zone": "T4 (Infield chicanes)", "severity": "medium", "tip": "Quick" }
+        ],
+        "acceleration_zones": [
+          { "zone": "T1 exit", "tip": "Full throttle" },
+          { "zone": "Hairpin exit", "tip": "Full throttle" }
+        ]
+      },
+      "nordschleife": {
+        "track_name": "Nürburgring Nordschleife (full 20.8km)",
+        "pro_pace_s1": 195.0,
+        "pro_pace_s2": 180.0,
+        "pro_pace_s3": 194.0,
+        "pro_pace_lap": 570.0,
+        "good_pace": 585.0,
+        "avg_pace": 620.0,
+        "notes": "Nordschleife is vastly different from any other track - times vary enormously based on traffic, conditions, and courage level. BMW M4 GT3 Nordschleife record is ~9:29."
+      },
+      "valencia": {
+        "track_name": "Circuit de la Comunidad Ricardo Tormo (Valencia)",
+        "pro_pace_s1": 34.0,
+        "pro_pace_s2": 35.0,
+        "pro_pace_s3": 24.0,
+        "pro_pace_lap": 93.0,
+        "good_pace": 95.0,
+        "avg_pace": 98.0,
+        "braking_zones": [
+          { "zone": "T1 (Drystat)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T4 (Cumbre)", "severity": "hard", "tip": "Heavy brake" },
+          { "zone": "T7 (Europa)", "severity": "medium", "tip": "Quick chicane" },
+          { "zone": "T10 (Caixa)", "severity": "hard", "tip": "Heavy brake" }
+        ],
+        "acceleration_zones": [
+          { "zone": "Cumbre exit", "tip": "Full throttle" },
+          { "zone": "Europa exit", "tip": "Full throttle to finish" }
+        ]
       }
     }
   }
